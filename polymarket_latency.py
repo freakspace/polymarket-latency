@@ -93,7 +93,7 @@ class PolymarketLatencyTracker:
                 self.events_received += 1
 
                 # Calibration phase: collect first N events to estimate clock offset
-                if not self.calibration_complete:
+                if not self.calibration_complete and self.calibration_events > 0:
                     if self.events_received == 1:
                         print(f"First event received! Type: {event_type}")
                         print(f"  Raw latency: {raw_latency_ms:.2f}ms")
@@ -101,14 +101,22 @@ class PolymarketLatencyTracker:
 
                     if self.events_received >= self.calibration_events:
                         # Calculate clock offset as median of raw latencies
-                        self.clock_offset = statistics.median(self.raw_latencies)
+                        self.clock_offset = statistics.median(self.raw_latencies[:self.calibration_events])
                         self.calibration_complete = True
                         print(f"\n✓ Calibration complete!")
                         print(f"  Estimated clock offset: {self.clock_offset:.2f}ms")
                         print(f"  Collecting remaining events with offset correction...\n")
 
-                # Apply clock offset correction
-                if self.calibration_complete:
+                # If calibration is disabled (calibration_events == 0), mark as complete immediately
+                elif not self.calibration_complete and self.calibration_events == 0:
+                    if self.events_received == 1:
+                        print(f"First event received! Type: {event_type}")
+                        print(f"  Raw latency: {raw_latency_ms:.2f}ms")
+                        print(f"  Clock calibration DISABLED - using raw measurements only\n")
+                    self.calibration_complete = True  # Skip calibration entirely
+
+                # Apply clock offset correction (only if calibration was done)
+                if self.calibration_complete and self.clock_offset is not None:
                     adjusted_latency_ms = raw_latency_ms - self.clock_offset
                     self.adjusted_latencies.append(adjusted_latency_ms)
 
@@ -116,6 +124,12 @@ class PolymarketLatencyTracker:
                     if (self.events_received - self.calibration_events) % 10 == 0 and self.events_received > self.calibration_events:
                         print(f"Received {self.events_received}/{self.num_events} events | "
                               f"Type: {event_type} | Adjusted latency: {adjusted_latency_ms:.2f}ms")
+
+                # Print progress for raw measurements when calibration is disabled
+                elif self.calibration_complete and self.clock_offset is None:
+                    if self.events_received % 10 == 0:
+                        print(f"Received {self.events_received}/{self.num_events} events | "
+                              f"Type: {event_type} | Raw latency: {raw_latency_ms:.2f}ms")
 
                 # Close connection after collecting enough events
                 if self.events_received >= self.num_events:
@@ -213,15 +227,46 @@ class PolymarketLatencyTracker:
         # Display raw statistics
         raw_median = statistics.median(self.raw_latencies)
         raw_mean = statistics.mean(self.raw_latencies)
+        raw_stdev = statistics.stdev(self.raw_latencies) if len(self.raw_latencies) > 1 else 0
 
-        print(f"\nRAW MEASUREMENTS (with clock offset):")
-        print(f"  Total events: {len(self.raw_latencies)}")
-        print(f"  Median: {raw_median:.2f}ms")
-        print(f"  Mean: {raw_mean:.2f}ms")
-        print(f"  Min: {min(self.raw_latencies):.2f}ms")
-        print(f"  Max: {max(self.raw_latencies):.2f}ms")
-        if len(self.raw_latencies) > 1:
-            print(f"  Std deviation: {statistics.stdev(self.raw_latencies):.2f}ms")
+        # If calibration was disabled, show raw as the primary measurement
+        if self.clock_offset is None:
+            print(f"\nLATENCY MEASUREMENTS (NTP-synced, no calibration):")
+            print(f"  Total events: {len(self.raw_latencies)}")
+            print(f"  Median latency: {raw_median:.2f}ms")
+            print(f"  Mean latency: {raw_mean:.2f}ms")
+            print(f"  Min latency: {min(self.raw_latencies):.2f}ms")
+            print(f"  Max latency: {max(self.raw_latencies):.2f}ms")
+            if len(self.raw_latencies) > 1:
+                print(f"  Std deviation: {raw_stdev:.2f}ms")
+
+            # Show percentiles
+            sorted_raw = sorted(self.raw_latencies)
+            p25 = sorted_raw[len(sorted_raw) // 4]
+            p75 = sorted_raw[3 * len(sorted_raw) // 4]
+            p95 = sorted_raw[int(0.95 * len(sorted_raw))] if len(sorted_raw) > 1 else sorted_raw[0]
+            p99 = sorted_raw[int(0.99 * len(sorted_raw))] if len(sorted_raw) > 1 else sorted_raw[0]
+
+            print(f"\n  Percentiles:")
+            print(f"    25th: {p25:.2f}ms")
+            print(f"    75th: {p75:.2f}ms")
+            print(f"    95th: {p95:.2f}ms")
+            print(f"    99th: {p99:.2f}ms")
+
+            print(f"\n  Interpretation:")
+            print(f"    Median latency of {raw_median:.2f}ms represents the typical time")
+            print(f"    from when Polymarket creates an event to when you receive it.")
+            print(f"    Std deviation of {raw_stdev:.2f}ms shows network variability.")
+        else:
+            # Show raw as secondary when calibration was used
+            print(f"\nRAW MEASUREMENTS (before calibration):")
+            print(f"  Total events: {len(self.raw_latencies)}")
+            print(f"  Median: {raw_median:.2f}ms")
+            print(f"  Mean: {raw_mean:.2f}ms")
+            print(f"  Min: {min(self.raw_latencies):.2f}ms")
+            print(f"  Max: {max(self.raw_latencies):.2f}ms")
+            if len(self.raw_latencies) > 1:
+                print(f"  Std deviation: {raw_stdev:.2f}ms")
 
         # Display adjusted statistics if calibration was completed
         if self.adjusted_latencies and self.clock_offset is not None:
