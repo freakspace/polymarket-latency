@@ -109,6 +109,7 @@ python polymarket_latency.py <market-slug> [num_events] [calibration_events]
 - `market-slug` (required): The Polymarket market slug (e.g., "btc-updown-15m-1769050800")
 - `num_events` (optional): Number of events to collect before closing (default: 100)
 - `calibration_events` (optional): Number of initial events to use for clock offset calibration (default: 10)
+- `--verbose, -v` (optional): Show detailed output for each event including timestamp gaps
 
 ### Examples
 
@@ -125,6 +126,12 @@ python polymarket_latency.py btc-updown-15m-1769050800 100 10
 **Quick test with defaults (100 events, 10 calibration events):**
 ```bash
 python polymarket_latency.py will-bitcoin-hit-100k-in-2024
+```
+
+**Verbose mode to diagnose batching/queueing:**
+```bash
+python polymarket_latency.py btc-updown-15m-1769050800 100 0 --verbose
+# Shows each event with timestamp gaps to detect batching
 ```
 
 ## How It Works
@@ -341,6 +348,27 @@ done
 # - Check Polymarket status page
 ```
 
+**Very high variance (std dev > 80ms)?**
+```bash
+# Run in verbose mode to see batching pattern
+python polymarket_latency.py <market-slug> 500 0 --verbose
+
+# Look for:
+# - Clusters of high latencies (200-300ms)
+# - Then clusters of low latencies (5-20ms)
+# - Large timestamp gaps between events
+# This indicates server-side batching, not network issues
+```
+
+**Getting warnings about high variance?**
+```
+⚠️  High Variance Detected:
+    Std deviation (84.35ms) is 2.5x the median.
+    This suggests server-side batching/queueing, not just network jitter.
+```
+
+This is **normal** - it means Polymarket is batching events internally. Your network is fine. The median latency is still the most reliable metric for typical delivery time.
+
 ## API References
 
 - [Polymarket WebSocket Documentation](https://docs.polymarket.com/developers/CLOB/websocket/wss-overview)
@@ -502,16 +530,51 @@ Based on testing, these factors impact latency:
 2. **Network Route Quality**
    - Premium networks (AWS, GCP): Lower variance
    - Budget VPS: Higher variance
-   - Observed: 28-48ms std deviation
+   - Observed: 28-48ms std deviation (normal)
+   - Observed: 80-100ms std deviation (indicates batching)
 
-3. **Market Activity**
+3. **Server-Side Batching/Queueing** (significant impact!)
+   - **Most common cause of high variance**
+   - Events timestamped at creation but queued before sending
+   - Results in clusters of high latency (200-300ms) events
+   - Then clusters of low latency (5-20ms) events
+   - Creates bimodal distribution instead of normal distribution
+
+4. **Market Activity**
    - Low activity: More consistent (~28ms std dev)
-   - High activity: More variance (~48ms std dev)
-   - Spikes during major events (100ms+ possible)
+   - High activity: More variance (~48-80ms std dev)
+   - Spikes during major events (100-300ms possible)
 
-4. **Event Type** (minimal impact)
+5. **Event Type** (minimal impact)
    - All types show similar latency
    - No significant difference observed
+
+### Understanding High Variance
+
+**Normal Network Variance:**
+```
+Std dev: 25-50ms
+95th percentile: 2-3x median
+Max latency: 3-4x median
+Pattern: Random fluctuations
+```
+
+**Server-Side Batching/Queueing:**
+```
+Std dev: 80-100ms+
+95th percentile: 5-8x median
+Max latency: 10x+ median
+Pattern: Clusters of high/low latencies
+```
+
+**Example of Batching Pattern:**
+```
+Events 200-250: ALL 225-309ms (queued batch released)
+Events 260-420: ALL 4-50ms    (fresh events)
+Events 430-470: Rising 30-90ms (queue building up)
+```
+
+This is **normal Polymarket behavior**, not a network problem. Use the `--verbose` flag to see timestamp gaps and detect batching.
 
 ## Key Takeaways
 

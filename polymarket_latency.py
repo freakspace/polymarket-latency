@@ -18,15 +18,18 @@ from websocket import WebSocketApp
 
 
 class PolymarketLatencyTracker:
-    def __init__(self, market_slug: str, num_events: int = 100, calibration_events: int = 10):
+    def __init__(self, market_slug: str, num_events: int = 100, calibration_events: int = 10, verbose: bool = False):
         self.market_slug = market_slug
         self.num_events = num_events
         self.calibration_events = min(calibration_events, num_events // 2)  # At most half the events
+        self.verbose = verbose
         self.ws_url = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
         self.api_url = f"https://gamma-api.polymarket.com/markets/slug/{market_slug}"
 
         self.raw_latencies: List[float] = []  # Raw latencies (with clock offset)
         self.adjusted_latencies: List[float] = []  # Adjusted latencies (offset removed)
+        self.event_timestamps: List[float] = []  # Event timestamps for analysis
+        self.receive_timestamps: List[float] = []  # Receive timestamps for analysis
         self.events_received = 0
         self.token_ids: List[str] = []
         self.ws: WebSocketApp = None
@@ -90,6 +93,8 @@ class PolymarketLatencyTracker:
                 # Calculate raw latency in milliseconds
                 raw_latency_ms = receive_time_ms - event_timestamp
                 self.raw_latencies.append(raw_latency_ms)
+                self.event_timestamps.append(event_timestamp)
+                self.receive_timestamps.append(receive_time_ms)
                 self.events_received += 1
 
                 # Calibration phase: collect first N events to estimate clock offset
@@ -127,9 +132,14 @@ class PolymarketLatencyTracker:
 
                 # Print progress for raw measurements when calibration is disabled
                 elif self.calibration_complete and self.clock_offset is None:
-                    if self.events_received % 10 == 0:
-                        print(f"Received {self.events_received}/{self.num_events} events | "
-                              f"Type: {event_type} | Raw latency: {raw_latency_ms:.2f}ms")
+                    if self.events_received % 10 == 0 or self.verbose:
+                        output = f"Received {self.events_received}/{self.num_events} events | Type: {event_type} | Raw latency: {raw_latency_ms:.2f}ms"
+                        if self.verbose:
+                            # Calculate time since last event
+                            if len(self.event_timestamps) > 1:
+                                time_since_last = event_timestamp - self.event_timestamps[-2]
+                                output += f" | Gap: {time_since_last:.0f}ms"
+                        print(output)
 
                 # Close connection after collecting enough events
                 if self.events_received >= self.num_events:
@@ -257,6 +267,25 @@ class PolymarketLatencyTracker:
             print(f"    Median latency of {raw_median:.2f}ms represents the typical time")
             print(f"    from when Polymarket creates an event to when you receive it.")
             print(f"    Std deviation of {raw_stdev:.2f}ms shows network variability.")
+
+            # Detect potential batching/queueing issues
+            if raw_stdev > raw_median * 1.5:
+                print(f"\n  ⚠️  High Variance Detected:")
+                print(f"    Std deviation ({raw_stdev:.2f}ms) is {raw_stdev/raw_median:.1f}x the median.")
+                print(f"    This suggests server-side batching/queueing, not just network jitter.")
+                print(f"    Events may be timestamped at creation but queued before sending.")
+
+            # Analyze event timestamp gaps to detect batching
+            if len(self.event_timestamps) > 10:
+                gaps = [self.event_timestamps[i] - self.event_timestamps[i-1]
+                        for i in range(1, len(self.event_timestamps))]
+                median_gap = statistics.median(gaps)
+                max_gap = max(gaps)
+                print(f"\n  Event Timing Analysis:")
+                print(f"    Median time between events: {median_gap:.0f}ms")
+                print(f"    Max gap between events: {max_gap:.0f}ms")
+                if max_gap > median_gap * 10:
+                    print(f"    ⚠️  Large gaps detected - events may arrive in bursts")
         else:
             # Show raw as secondary when calibration was used
             print(f"\nRAW MEASUREMENTS (before calibration):")
@@ -313,20 +342,26 @@ def main():
     import sys
 
     if len(sys.argv) < 2:
-        print("Usage: python polymarket_latency.py <market-slug> [num_events] [calibration_events]")
+        print("Usage: python polymarket_latency.py <market-slug> [num_events] [calibration_events] [--verbose]")
         print("\nArguments:")
         print("  market-slug         : Polymarket market slug (required)")
         print("  num_events          : Total events to collect (default: 100)")
         print("  calibration_events  : Events to use for clock offset calibration (default: 10)")
+        print("  --verbose, -v       : Show detailed output for each event")
         print("\nExample:")
-        print("  python polymarket_latency.py btc-updown-15m-1769050800 100 10")
+        print("  python polymarket_latency.py btc-updown-15m-1769050800 500 0")
+        print("  python polymarket_latency.py btc-updown-15m-1769050800 100 10 --verbose")
         sys.exit(1)
 
-    market_slug = sys.argv[1]
-    num_events = int(sys.argv[2]) if len(sys.argv) > 2 else 100
-    calibration_events = int(sys.argv[3]) if len(sys.argv) > 3 else 10
+    # Check for verbose flag
+    verbose = '--verbose' in sys.argv or '-v' in sys.argv
+    args = [arg for arg in sys.argv[1:] if arg not in ['--verbose', '-v']]
 
-    tracker = PolymarketLatencyTracker(market_slug, num_events, calibration_events)
+    market_slug = args[0]
+    num_events = int(args[1]) if len(args) > 1 else 100
+    calibration_events = int(args[2]) if len(args) > 2 else 10
+
+    tracker = PolymarketLatencyTracker(market_slug, num_events, calibration_events, verbose)
     tracker.run()
 
 
