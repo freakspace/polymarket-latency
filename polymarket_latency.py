@@ -5,16 +5,32 @@ Polymarket WebSocket Latency Measurement Tool
 Connects to Polymarket's websocket, subscribes to a market by slug,
 collects 100 events, and calculates the median latency between
 event timestamps and local receipt time.
+
+Supports both Market channel (public) and User channel (authenticated).
 """
 
 import json
+import os
 import time
 import statistics
 import threading
-from datetime import datetime, timezone
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import requests
 from websocket import WebSocketApp
+
+# Load .env file if python-dotenv is available
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv not installed, rely on environment variables
+
+# Channel types
+MARKET_CHANNEL = "market"
+USER_CHANNEL = "user"
+
+# WebSocket base URL
+WS_BASE_URL = "wss://ws-subscriptions-clob.polymarket.com"
 
 
 class PolymarketLatencyTracker:
@@ -23,7 +39,7 @@ class PolymarketLatencyTracker:
         self.num_events = num_events
         self.calibration_events = min(calibration_events, num_events // 2)  # At most half the events
         self.verbose = verbose
-        self.ws_url = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
+        self.ws_url = f"{WS_BASE_URL}/ws/{MARKET_CHANNEL}"
         self.api_url = f"https://gamma-api.polymarket.com/markets/slug/{market_slug}"
 
         self.raw_latencies: List[float] = []  # Raw latencies (with clock offset)
@@ -338,31 +354,350 @@ class PolymarketLatencyTracker:
         print(f"{'='*60}")
 
 
+class UserEventsTracker:
+    """
+    Connects to Polymarket's User channel WebSocket for authenticated
+    updates on orders and trades.
+
+    Requires API credentials (api_key, api_secret, api_passphrase).
+    Credentials can be passed directly or loaded from environment variables:
+      - POLY_API_KEY
+      - POLY_API_SECRET
+      - POLY_API_PASSPHRASE
+    """
+
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        api_secret: Optional[str] = None,
+        api_passphrase: Optional[str] = None,
+        markets: Optional[List[str]] = None,
+        verbose: bool = False,
+        message_callback: Optional[callable] = None,
+    ):
+        # Load credentials from params or environment
+        self.api_key = api_key or os.environ.get("POLY_API_KEY", "")
+        self.api_secret = api_secret or os.environ.get("POLY_API_SECRET", "")
+        self.api_passphrase = api_passphrase or os.environ.get("POLY_API_PASSPHRASE", "")
+
+        self.markets = markets or []  # Condition IDs to filter (empty = all)
+        self.verbose = verbose
+        self.message_callback = message_callback
+
+        self.ws_url = f"{WS_BASE_URL}/ws/{USER_CHANNEL}"
+        self.ws: WebSocketApp = None
+        self.ping_thread = None
+
+        # Event tracking
+        self.events_received = 0
+        self.trades: List[Dict[str, Any]] = []
+        self.orders: List[Dict[str, Any]] = []
+        self.raw_latencies: List[float] = []
+
+    def _validate_credentials(self) -> bool:
+        """Check if all required credentials are provided."""
+        if not self.api_key or not self.api_secret or not self.api_passphrase:
+            print("Error: Missing API credentials.")
+            print("Provide credentials via arguments or environment variables:")
+            print("  - POLY_API_KEY")
+            print("  - POLY_API_SECRET")
+            print("  - POLY_API_PASSPHRASE")
+            return False
+        return True
+
+    def on_message(self, ws, message):
+        """Handle incoming websocket messages."""
+        receive_time_ms = time.time() * 1000
+
+        # Handle PING/PONG
+        if message.strip() in ["PING", "PONG"]:
+            if self.verbose:
+                print(f"Received: {message.strip()}")
+            return
+
+        try:
+            data = json.loads(message)
+
+            # Handle array messages
+            if isinstance(data, list):
+                for item in data:
+                    self._process_event(item, receive_time_ms)
+                return
+
+            if isinstance(data, dict):
+                self._process_event(data, receive_time_ms)
+            else:
+                print(f"Received unexpected message type: {type(data)}")
+
+        except json.JSONDecodeError:
+            print(f"Failed to parse message: {message[:100]}...")
+        except Exception as e:
+            print(f"Error processing message: {e}")
+            if self.verbose:
+                import traceback
+                traceback.print_exc()
+
+    def _process_event(self, data: Dict[str, Any], receive_time_ms: float):
+        """Process a single event from the websocket."""
+        # Check for error responses
+        if data.get("error") or data.get("message"):
+            print(f"Server message: {data}")
+            return
+
+        event_type = data.get("event_type", data.get("type", "unknown"))
+        self.events_received += 1
+
+        # Extract timestamp and calculate latency
+        event_timestamp = data.get("timestamp")
+        latency_ms = None
+        if event_timestamp:
+            if isinstance(event_timestamp, str):
+                event_timestamp = float(event_timestamp)
+            latency_ms = receive_time_ms - event_timestamp
+            self.raw_latencies.append(latency_ms)
+
+        # Categorize event
+        if event_type == "trade" or data.get("type") == "TRADE":
+            self.trades.append(data)
+            self._print_trade_event(data, latency_ms)
+        elif event_type == "order" or data.get("type") in ["PLACEMENT", "UPDATE", "CANCELLATION"]:
+            self.orders.append(data)
+            self._print_order_event(data, latency_ms)
+        else:
+            if self.verbose:
+                print(f"Unknown event type: {event_type}")
+                print(f"  Data: {json.dumps(data, indent=2)[:500]}")
+
+        # Call user callback if provided
+        if self.message_callback:
+            self.message_callback(data, latency_ms)
+
+    def _print_trade_event(self, data: Dict[str, Any], latency_ms: Optional[float]):
+        """Print formatted trade event."""
+        status = data.get("status", "")
+        side = data.get("side", "")
+        size = data.get("size", "")
+        price = data.get("price", "")
+        outcome = data.get("outcome", "")
+        trade_id = data.get("id", "")[:16] + "..." if data.get("id") else ""
+
+        latency_str = f" | Latency: {latency_ms:.0f}ms" if latency_ms else ""
+
+        print(f"TRADE #{self.events_received}: {status} {side} {size}@{price} {outcome} [{trade_id}]{latency_str}")
+
+        if self.verbose:
+            print(f"  Market: {data.get('market', 'N/A')}")
+            print(f"  Taker Order: {data.get('taker_order_id', 'N/A')[:32]}...")
+            maker_orders = data.get("maker_orders", [])
+            if maker_orders:
+                print(f"  Maker Orders: {len(maker_orders)}")
+
+    def _print_order_event(self, data: Dict[str, Any], latency_ms: Optional[float]):
+        """Print formatted order event."""
+        event_subtype = data.get("type", "")
+        side = data.get("side", "")
+        original_size = data.get("original_size", "")
+        size_matched = data.get("size_matched", "")
+        price = data.get("price", "")
+        outcome = data.get("outcome", "")
+        order_id = data.get("id", "")[:16] + "..." if data.get("id") else ""
+
+        latency_str = f" | Latency: {latency_ms:.0f}ms" if latency_ms else ""
+
+        print(f"ORDER #{self.events_received}: {event_subtype} {side} {original_size}@{price} {outcome} (matched: {size_matched}) [{order_id}]{latency_str}")
+
+        if self.verbose:
+            print(f"  Market: {data.get('market', 'N/A')}")
+            print(f"  Owner: {data.get('owner', 'N/A')}")
+
+    def on_error(self, ws, error):
+        """Handle websocket errors."""
+        print(f"WebSocket Error: {error}")
+
+    def on_close(self, ws, close_status_code, close_msg):
+        """Handle websocket connection close."""
+        print(f"WebSocket closed: {close_status_code} - {close_msg}")
+        self._display_summary()
+
+    def ping(self, ws):
+        """Send periodic PING messages to keep connection alive."""
+        while ws.keep_running:
+            try:
+                ws.send("PING")
+                time.sleep(10)
+            except Exception:
+                break
+
+    def on_open(self, ws):
+        """Handle websocket connection open and send authentication."""
+        print(f"WebSocket connected. Authenticating...")
+
+        # Build auth object
+        auth = {
+            "apiKey": self.api_key,
+            "secret": self.api_secret,
+            "passphrase": self.api_passphrase,
+        }
+
+        # Subscription message for user channel (markets field is always required)
+        subscription_message = {
+            "markets": self.markets,  # Empty list = all markets
+            "type": USER_CHANNEL,
+            "auth": auth,
+        }
+
+        ws.send(json.dumps(subscription_message))
+        print(f"Authentication sent (API key: {self.api_key[:8]}...). Listening for user events...")
+        if self.markets:
+            print(f"Filtering by markets: {self.markets}")
+        else:
+            print("Receiving events for all markets.")
+
+        # Start ping thread
+        self.ping_thread = threading.Thread(target=self.ping, args=(ws,))
+        self.ping_thread.daemon = True
+        self.ping_thread.start()
+
+    def _display_summary(self):
+        """Display summary of received events."""
+        print(f"\n{'='*60}")
+        print("USER EVENTS SUMMARY")
+        print(f"{'='*60}")
+        print(f"Total events received: {self.events_received}")
+        print(f"  Trades: {len(self.trades)}")
+        print(f"  Orders: {len(self.orders)}")
+
+        if self.raw_latencies:
+            median_latency = statistics.median(self.raw_latencies)
+            mean_latency = statistics.mean(self.raw_latencies)
+            print(f"\nLatency Statistics:")
+            print(f"  Median: {median_latency:.2f}ms")
+            print(f"  Mean: {mean_latency:.2f}ms")
+            print(f"  Min: {min(self.raw_latencies):.2f}ms")
+            print(f"  Max: {max(self.raw_latencies):.2f}ms")
+
+        print(f"{'='*60}")
+
+    def run(self):
+        """Start the WebSocket connection."""
+        if not self._validate_credentials():
+            return
+
+        print(f"\nConnecting to User Events WebSocket: {self.ws_url}")
+        print("Press Ctrl+C to stop.\n")
+
+        self.ws = WebSocketApp(
+            self.ws_url,
+            on_open=self.on_open,
+            on_message=self.on_message,
+            on_error=self.on_error,
+            on_close=self.on_close,
+        )
+
+        try:
+            self.ws.run_forever()
+        except KeyboardInterrupt:
+            print("\nInterrupted by user.")
+            self.ws.close()
+
+
 def main():
     import sys
 
     if len(sys.argv) < 2:
-        print("Usage: python polymarket_latency.py <market-slug> [num_events] [calibration_events] [--verbose]")
-        print("\nArguments:")
-        print("  market-slug         : Polymarket market slug (required)")
+        print("Usage:")
+        print("  Market channel (public):")
+        print("    python polymarket_latency.py market <market-slug> [num_events] [calibration_events] [--verbose]")
+        print("")
+        print("  User channel (authenticated):")
+        print("    python polymarket_latency.py user [--verbose]")
+        print("    python polymarket_latency.py user --markets <condition_id1,condition_id2> [--verbose]")
+        print("")
+        print("Arguments:")
+        print("  market-slug         : Polymarket market slug (for market channel)")
         print("  num_events          : Total events to collect (default: 100)")
-        print("  calibration_events  : Events to use for clock offset calibration (default: 10)")
-        print("  --verbose, -v       : Show detailed output for each event")
-        print("\nExample:")
-        print("  python polymarket_latency.py btc-updown-15m-1769050800 500 0")
-        print("  python polymarket_latency.py btc-updown-15m-1769050800 100 10 --verbose")
+        print("  calibration_events  : Events for clock offset calibration (default: 10)")
+        print("  --markets           : Comma-separated condition IDs to filter (user channel)")
+        print("  --verbose, -v       : Show detailed output")
+        print("")
+        print("Environment variables for user channel:")
+        print("  POLY_API_KEY        : Your Polymarket API key")
+        print("  POLY_API_SECRET     : Your Polymarket API secret")
+        print("  POLY_API_PASSPHRASE : Your Polymarket API passphrase")
+        print("")
+        print("Examples:")
+        print("  # Market channel - measure latency for a specific market")
+        print("  python polymarket_latency.py market btc-updown-15m-1769050800 500 0")
+        print("")
+        print("  # User channel - listen for your order/trade events")
+        print("  export POLY_API_KEY=your_key")
+        print("  export POLY_API_SECRET=your_secret")
+        print("  export POLY_API_PASSPHRASE=your_passphrase")
+        print("  python polymarket_latency.py user --verbose")
         sys.exit(1)
 
     # Check for verbose flag
     verbose = '--verbose' in sys.argv or '-v' in sys.argv
-    args = [arg for arg in sys.argv[1:] if arg not in ['--verbose', '-v']]
 
-    market_slug = args[0]
-    num_events = int(args[1]) if len(args) > 1 else 100
-    calibration_events = int(args[2]) if len(args) > 2 else 10
+    # Parse --markets flag
+    markets = []
+    markets_value = None
+    if '--markets' in sys.argv:
+        markets_idx = sys.argv.index('--markets')
+        if markets_idx + 1 < len(sys.argv):
+            markets_value = sys.argv[markets_idx + 1]
+            markets = [m.strip() for m in markets_value.split(',') if m.strip()]
 
-    tracker = PolymarketLatencyTracker(market_slug, num_events, calibration_events, verbose)
-    tracker.run()
+    # Filter out flags from args
+    skip_next = False
+    args = []
+    for arg in sys.argv[1:]:
+        if skip_next:
+            skip_next = False
+            continue
+        if arg in ['--verbose', '-v']:
+            continue
+        if arg == '--markets':
+            skip_next = True
+            continue
+        args.append(arg)
+
+    if not args:
+        print("Error: Please specify 'market' or 'user' as the first argument.")
+        sys.exit(1)
+
+    channel = args[0].lower()
+
+    if channel == "user":
+        # User channel mode
+        tracker = UserEventsTracker(
+            markets=markets if markets else None,
+            verbose=verbose,
+        )
+        tracker.run()
+
+    elif channel == "market":
+        # Market channel mode (original behavior)
+        if len(args) < 2:
+            print("Error: market-slug is required for market channel.")
+            print("Usage: python polymarket_latency.py market <market-slug> [num_events] [calibration_events]")
+            sys.exit(1)
+
+        market_slug = args[1]
+        num_events = int(args[2]) if len(args) > 2 else 100
+        calibration_events = int(args[3]) if len(args) > 3 else 10
+
+        tracker = PolymarketLatencyTracker(market_slug, num_events, calibration_events, verbose)
+        tracker.run()
+
+    else:
+        # Backward compatibility: treat first arg as market slug
+        market_slug = args[0]
+        num_events = int(args[1]) if len(args) > 1 else 100
+        calibration_events = int(args[2]) if len(args) > 2 else 10
+
+        tracker = PolymarketLatencyTracker(market_slug, num_events, calibration_events, verbose)
+        tracker.run()
 
 
 if __name__ == "__main__":
