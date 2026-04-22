@@ -62,6 +62,63 @@ This project connects to Polymarket's market websocket, subscribes to a specific
 pip install -r requirements.txt
 ```
 
+## CLOB V2 Order Burst Test
+
+There is also a standalone V2 order-placement probe at `polymarket_order_burst.py`. It is designed for exactly the duplicate-order question we discussed:
+
+- It uses the official `py-clob-client-v2` SDK against `https://clob-v2.polymarket.com`
+- It sends separate concurrent `POST /order` calls, not the batch `/orders` endpoint
+- Inside each burst, every signed order gets the same V2 `timestamp` in milliseconds
+- It reports per-request latency, returned status/error, and how many new open orders actually appeared
+- By default it cancels the newly-created test orders after each burst
+- It writes `recordings/order-burst/<timestamp>/summary.json` by default
+
+### Required env vars
+
+The script now auto-loads a local `.env` file, so you can either `export` vars in your shell or put them in `.env`.
+
+```bash
+export PK=0xyour_private_key
+```
+
+Equivalent `.env`:
+
+```bash
+PK=0xyour_private_key
+```
+
+Optional if you already have them and want to reuse them:
+
+```bash
+export CLOB_API_KEY=...
+export CLOB_SECRET=...
+export CLOB_PASS_PHRASE=...
+export CHAIN_ID=80002
+export CLOB_API_URL=https://clob-v2.polymarket.com
+```
+
+### Example
+
+The V2 migration guide lists this test market token on `clob-v2.polymarket.com`:
+
+```bash
+make order-burst \
+  TOKEN_ID=102936224134271070189104847090829839924697394514566827387181305960175107677216
+```
+
+That example uses the "US / Iran nuclear deal in 2027?" test market from the Polymarket V2 migration docs. The script defaults to a tiny passive BUY order, `post_only=true`, and cleanup enabled so it can measure placement behavior without intentionally crossing the spread.
+
+Useful overrides:
+
+```bash
+make order-burst \
+  TOKEN_ID=102936224134271070189104847090829839924697394514566827387181305960175107677216 \
+  COUNTS=1,2,5,10 \
+  PRICE=0.01 \
+  SIZE=5 \
+  CLEANUP=1
+```
+
 ## Clock Synchronization (VPS/Ubuntu)
 
 For accurate latency measurements on a VPS, synchronize your system clock with NTP servers:

@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Polymarket CLOB WS Benchmark Report</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f1f5f9;
+      --surface: #ffffff;
+      --surface-muted: #f8fafc;
+      --border: #e2e8f0;
+      --border-strong: #cbd5e1;
+      --text: #0f172a;
+      --text-muted: #475569;
+      --text-subtle: #64748b;
+      --accent: #2563eb;
+      --accent-soft: #dbeafe;
+      --good: #059669;
+      --good-soft: #d1fae5;
+      --warn: #b45309;
+      --warn-soft: #fef3c7;
+      --bad: #dc2626;
+      --bad-soft: #fee2e2;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      font-size: 14px;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+    .container {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 40px 32px 64px;
+    }
+    a { color: var(--accent); }
+    h1, h2, h3 { margin: 0; color: var(--text); letter-spacing: -0.01em; }
+    h1 { font-size: 26px; font-weight: 700; }
+    h2 { font-size: 18px; font-weight: 600; }
+    h3 { font-size: 15px; font-weight: 600; }
+    p { margin: 0; color: var(--text-muted); }
+    .eyebrow {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 6px;
+    }
+    .hero {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 32px;
+    }
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 18px;
+      color: var(--text-subtle);
+      font-size: 13px;
+    }
+    .hero-meta span strong { color: var(--text); font-weight: 600; }
+    .hero-note {
+      font-size: 12px;
+      color: var(--text-subtle);
+    }
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 14px;
+      margin-bottom: 32px;
+    }
+    .kpi {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .kpi-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-subtle);
+    }
+    .kpi-value {
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+    .kpi-detail {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .kpi-good .kpi-value { color: var(--good); }
+    .kpi-accent .kpi-value { color: var(--accent); }
+    .section {
+      margin-bottom: 32px;
+    }
+    .section-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      gap: 12px;
+    }
+    .section-head h2 { margin: 0; }
+    .section-head p { margin: 0; font-size: 13px; color: var(--text-subtle); }
+    .answers {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 14px;
+    }
+    .answer-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 18px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .answer-card h3 { font-size: 15px; line-height: 1.35; color: var(--text); }
+    .answer-card .answer-body { font-size: 13px; color: var(--text-muted); }
+    .answer-card .answer-foot { font-size: 12px; color: var(--text-subtle); }
+    .answer-meta { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-subtle); }
+    .verdict-chip {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      letter-spacing: 0.02em;
+      font-weight: 600;
+    }
+    .verdict-yes { background: var(--good-soft); color: var(--good); }
+    .verdict-mixed { background: var(--warn-soft); color: var(--warn); }
+    .verdict-no { background: var(--bad-soft); color: var(--bad); }
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+    }
+    thead th {
+      text-align: left;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-subtle);
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    tbody td.cell {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+      white-space: nowrap;
+    }
+    tbody tr:last-child td.cell { border-bottom: none; }
+    tbody td.cell-label { font-weight: 600; }
+    tbody td.cell-best {
+      color: var(--good);
+      font-weight: 600;
+      background: var(--good-soft);
+    }
+    .cell-transition {
+      font-variant-numeric: tabular-nums;
+    }
+    .transition-inner {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .transition-before { color: var(--text-subtle); }
+    .transition-after { color: var(--text); font-weight: 600; }
+    .trend {
+      font-size: 11px;
+      width: 18px;
+      text-align: center;
+    }
+    .trend-down { color: var(--good); }
+    .trend-up { color: var(--bad); }
+    .trend-flat { color: var(--text-subtle); }
+    .charts {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+      gap: 16px;
+    }
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 16px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .chart-card-header h3 { font-size: 14px; }
+    .chart-card-header p { font-size: 12px; color: var(--text-subtle); margin-top: 2px; }
+    .chart-body { width: 100%; }
+    .chart-body svg {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+    .caveats ul { margin: 8px 0 0; padding-left: 18px; color: var(--text-muted); font-size: 12px; }
+    .caveats li { margin-bottom: 4px; }
+    @media (max-width: 720px) {
+      .container { padding: 24px 16px 48px; }
+      .kpi-row { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+      .charts { grid-template-columns: 1fr; }
+      thead th, tbody td.cell { padding: 8px; font-size: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <header class="hero">
+      <div class="eyebrow">Polymarket CLOB WS Benchmark</div>
+      <h1>Topology scaling report</h1>
+      <div class="hero-meta">
+        <span>Market: <strong>btc-updown-5m-1776834900</strong></span>
+        <span>Series: <strong>10684</strong></span>
+        <span>Topologies: <strong>1, 2, 5, 10</strong></span>
+        <span>Duration: <strong>300s</strong></span>
+      </div>
+      <p class="hero-note">Warmup 10.0s per connection · compare window 10.0s · tail silence 10.07s · output recordings/ws-bench/20260422_051411</p>
+    </header>
+
+    <section class="kpi-row">
+      <div class='kpi kpi-good'><div class='kpi-label'>Best Coverage</div><div class='kpi-value'>100.0%</div><div class='kpi-detail'>10 ws</div></div><div class='kpi kpi-good'><div class='kpi-label'>Best Freshness P95</div><div class='kpi-value'>185.0ms</div><div class='kpi-detail'>5 ws</div></div><div class='kpi kpi-good'><div class='kpi-label'>Best Arrival P95</div><div class='kpi-value'>4.5ms</div><div class='kpi-detail'>10 ws</div></div><div class='kpi kpi-accent'><div class='kpi-label'>Largest Gap Reduction</div><div class='kpi-value'>−134</div><div class='kpi-detail'>1 ws → 10 ws: 134 → 0 events</div></div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>Headline questions</h2>
+        <p>Verdicts distilled from topology-level evidence in this run.</p>
+      </div>
+      <div class="answers">
+        <article class='answer-card'><div class='answer-meta'>Q1 · <span class='verdict-chip verdict-mixed'>No clear effect</span></div><h3>Does warmup have any positive effect on data gaps and latency?</h3><p class='answer-body'>Only 1/4 topologies improved on both arrival and freshness after warmup, and only 1/4 improved on both miss rate and largest-gap size.</p><p class='answer-foot'>In this run, the immediate post-warmup window was not consistently cleaner than the warmup window.</p></article><article class='answer-card'><div class='answer-meta'>Q2 · <span class='verdict-chip verdict-yes'>Mostly yes</span></div><h3>Does more connections improve data quality, gaps, and latency?</h3><p class='answer-body'>3/3 larger topologies beat 1 ws on both coverage and miss rate, and 1/3 beat it on both gap runs and largest-gap size. 10 ws had the best coverage (100.0%), 10 ws had the lowest miss rate (0.0%), 10 ws had the best arrival P95 (4.5ms), and 5 ws had the best freshness P95 (185.0ms).</p><p class='answer-foot'>Latency was not monotonic: 3/3 larger topologies beat 1 ws on both arrival and freshness.</p></article><article class='answer-card'><div class='answer-meta'>Q3 · <span class='verdict-chip verdict-yes'>Yes, at the pool level</span></div><h3>Does more connections help prevent stalled connections (data gaps)?</h3><p class='answer-body'>Topology gap runs fell from 19 at 1 ws to 0 at 10 ws, and the largest topology-level gap fell from 134 to 0 events.</p><p class='answer-foot'>Redundancy did not stop sockets from stalling individually: 10/10 sockets in the 10-ws pool still had gap runs, and the worst single socket missed 134 events in one gap.</p></article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>Topology summary</h2>
+        <p>Best value in each column is highlighted.</p>
+      </div>
+      <div class="panel">
+        <table>
+          <thead>
+            <tr>
+              <th>Topology</th>
+              <th>Coverage</th>
+              <th>Relative Miss</th>
+              <th>First Seen</th>
+              <th>Arrival P95</th>
+              <th>Freshness P95</th>
+              <th>Gap Runs</th>
+              <th>Largest Gap Events</th>
+              <th>Largest Gap Duration</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class='cell cell-label'>1 ws</td><td class='cell'>99.1%</td><td class='cell'>0.9%</td><td class='cell'>1.3%</td><td class='cell'>93.2ms</td><td class='cell'>227.9ms</td><td class='cell'>19</td><td class='cell'>134</td><td class='cell cell-best'>11.1ms</td></tr><tr><td class='cell cell-label'>2 ws</td><td class='cell'>99.1%</td><td class='cell'>0.9%</td><td class='cell'>3.3%</td><td class='cell'>38.5ms</td><td class='cell'>200.3ms</td><td class='cell'>18</td><td class='cell'>134</td><td class='cell'>11.1ms</td></tr><tr><td class='cell cell-label'>5 ws</td><td class='cell'>99.1%</td><td class='cell'>0.9%</td><td class='cell'>19.0%</td><td class='cell'>11.3ms</td><td class='cell cell-best'>185.0ms</td><td class='cell'>15</td><td class='cell'>134</td><td class='cell'>11.1ms</td></tr><tr><td class='cell cell-label'>10 ws</td><td class='cell cell-best'>100.0%</td><td class='cell cell-best'>0.0%</td><td class='cell cell-best'>76.4%</td><td class='cell cell-best'>4.5ms</td><td class='cell'>193.7ms</td><td class='cell cell-best'>0</td><td class='cell cell-best'>0</td><td class='cell'>-</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>Warmup vs post-warmup</h2>
+        <p>Each cell compares the warmup window to the first stable window after connect/rebind. ▼ green means the metric improved.</p>
+      </div>
+      <div class="panel">
+        <table>
+          <thead>
+            <tr>
+              <th>Topology</th>
+              <th>Miss Rate</th>
+              <th>Largest Gap Events</th>
+              <th>Arrival P95</th>
+              <th>Freshness P95</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class='cell cell-label'>1 ws</td><td class='cell cell-transition'><div class='transition-inner'><span class='transition-before'>0.4%</span><span class='trend trend-up'>▲</span><span class='transition-after'>8.8%</span></div></td><td class='cell cell-transition'><div class='transition-inner'><span class='transition-before'>17</span><span class='trend trend-up'>▲</span><span class='transition-after'>134</span></div></td><td class='cell cell-transition'><div class='transition-inner'><span class='transition-before'>468.5ms</span><span class='trend trend-down'>▼</span><span class='transition-after'>132.8ms</span></div></td><td class='cell cell-transition'><div class='transition-inner'><span class='transition-before'>788.9ms</span><span class='trend trend-down'>▼</span><span class='transition-after'>579.7ms</span></div></td></tr><tr><td class='cell cell-label'>2 ws</td><td class='cell cell-transition'><div class='transition-inner'><span class='transition-before'>0.2%</span><span class='trend trend-up'>▲</span><span class='transition-after'>8.7%</span></div></td><td class='cell cell-transition'><div class='transition-inner'><span class='transition-before'>6</span><span class='trend trend-up'>▲</span><span class='transition-after'>134</span></div></td><td class='cell cell-transition'><div class='transition-inner'><span class='transition-before'>97.8ms</span><span class='trend trend-down'>▼</span><span class='transition-after'>71.9ms</span></div></td><td class='cell cell-transition'><div class='transition-inner'><span class='transition-before'>492.6ms</span><span class='trend trend-up'>▲</span><span class='transition-after'>537.1ms</span></div></td></tr><tr><td class='cell cell-label'>5 ws</td><td class='cell cell-transition'><div class='transition-inner'><span class='transition-before'>0.2%</span><span class='trend trend-up'>▲</span><span class='transition-after'>8.7%</span></div></td><td class='cell cell-transition'><div class='transition-inner'><span class='transition-before'>4</span><span class='trend trend-up'>▲</span><span class='transition-after'>134</span></div></td><td class='cell cell-transition'><div class='transition-inner'><span class='transition-before'>26.6ms</span><span class='trend trend-down'>▼</span><span class='transition-after'>11.6ms</span></div></td><td class='cell cell-transition'><div class='transition-inner'><span class='transition-before'>424.6ms</span><span class='trend trend-up'>▲</span><span class='transition-after'>476.8ms</span></div></td></tr><tr><td class='cell cell-label'>10 ws</td><td class='cell cell-transition'><div class='transition-inner'><span class='transition-before'>0.1%</span><span class='trend trend-down'>▼</span><span class='transition-after'>0.0%</span></div></td><td class='cell cell-transition'><div class='transition-inner'><span class='transition-before'>3</span><span class='trend trend-down'>▼</span><span class='transition-after'>0</span></div></td><td class='cell cell-transition'><div class='transition-inner'><span class='transition-before'>24.1ms</span><span class='trend trend-down'>▼</span><span class='transition-after'>3.3ms</span></div></td><td class='cell cell-transition'><div class='transition-inner'><span class='transition-before'>444.6ms</span><span class='trend trend-up'>▲</span><span class='transition-after'>536.0ms</span></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>Single-socket stall evidence</h2>
+        <p>Individual sockets can stall even when the pool looks healthy — this table shows the cost behind pool-level wins.</p>
+      </div>
+      <div class="panel">
+        <table>
+          <thead>
+            <tr>
+              <th>Topology</th>
+              <th>Sockets</th>
+              <th>Sockets with Gap Runs</th>
+              <th>Median Gap Runs / Socket</th>
+              <th>Worst Socket Gap Events</th>
+              <th>Median Arrival P95</th>
+              <th>Median Freshness P95</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class='cell cell-label'>1 ws</td><td class='cell'>1</td><td class='cell'>1/1</td><td class='cell'>19</td><td class='cell'>134</td><td class='cell'>93.2ms</td><td class='cell'>227.9ms</td></tr><tr><td class='cell cell-label'>2 ws</td><td class='cell'>2</td><td class='cell'>2/2</td><td class='cell'>19</td><td class='cell'>134</td><td class='cell'>88.4ms</td><td class='cell'>234.1ms</td></tr><tr><td class='cell cell-label'>5 ws</td><td class='cell'>5</td><td class='cell'>5/5</td><td class='cell'>19</td><td class='cell'>134</td><td class='cell'>77.4ms</td><td class='cell'>223.3ms</td></tr><tr><td class='cell cell-label'>10 ws</td><td class='cell'>10</td><td class='cell'>10/10</td><td class='cell'>18</td><td class='cell'>134</td><td class='cell'>90.6ms</td><td class='cell'>239.8ms</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>Charts</h2>
+        <p>Each metric uses its own y-axis so small values stay readable alongside large ones.</p>
+      </div>
+      <div class="charts">
+        <article class='chart-card'><header class='chart-card-header'><h3>Data Quality</h3><p>How coverage, first-seen wins, and relative miss change as the pool scales.</p></header><div class='chart-body'><svg xmlns="http://www.w3.org/2000/svg" width="984" height="328" viewBox="0 0 984 328" role="img" aria-label="Topology Performance"><rect width="100%" height="100%" fill="#ffffff"/><text x="24" y="32" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="16" font-weight="600" fill="#0f172a">Topology Performance</text><text x="24" y="52" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" fill="#64748b">Coverage, first-seen share, and relative miss improve or regress as the websocket pool grows.</text><rect x="24.00" y="64.00" width="300.00" height="220.00" rx="10" fill="#f8fafc" stroke="#e2e8f0"/><text x="40.00" y="86.00" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#0f172a">Coverage</text><rect x="56.50" y="121.88" width="34.00" height="136.12" rx="3" fill="#2563eb" opacity="0.95" stroke="none" stroke-width="0"/><text x="73.50" y="116.88" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">99.1%</text><text x="73.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">1 ws</text><rect x="123.50" y="121.88" width="34.00" height="136.12" rx="3" fill="#2563eb" opacity="0.95" stroke="none" stroke-width="0"/><text x="140.50" y="116.88" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">99.1%</text><text x="140.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">2 ws</text><rect x="190.50" y="121.87" width="34.00" height="136.13" rx="3" fill="#2563eb" opacity="0.95" stroke="none" stroke-width="0"/><text x="207.50" y="116.87" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">99.1%</text><text x="207.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">5 ws</text><rect x="257.50" y="120.61" width="34.00" height="137.39" rx="3" fill="#2563eb" opacity="0.95" stroke="#0f172a" stroke-width="1.4"/><text x="274.50" y="115.61" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="600" fill="#0f172a">100.0%</text><text x="274.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">10 ws</text><line x1="40.00" y1="258.00" x2="308.00" y2="258.00" stroke="#cbd5e1" stroke-width="1"/><rect x="342.00" y="64.00" width="300.00" height="220.00" rx="10" fill="#f8fafc" stroke="#e2e8f0"/><text x="358.00" y="86.00" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#0f172a">First Seen</text><rect x="374.50" y="255.67" width="34.00" height="2.33" rx="3" fill="#059669" opacity="0.95" stroke="none" stroke-width="0"/><text x="391.50" y="250.67" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">1.3%</text><text x="391.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">1 ws</text><rect x="441.50" y="252.02" width="34.00" height="5.98" rx="3" fill="#059669" opacity="0.95" stroke="none" stroke-width="0"/><text x="458.50" y="247.02" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">3.3%</text><text x="458.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">2 ws</text><rect x="508.50" y="223.90" width="34.00" height="34.10" rx="3" fill="#059669" opacity="0.95" stroke="none" stroke-width="0"/><text x="525.50" y="218.90" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">19.0%</text><text x="525.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">5 ws</text><rect x="575.50" y="120.61" width="34.00" height="137.39" rx="3" fill="#059669" opacity="0.95" stroke="#0f172a" stroke-width="1.4"/><text x="592.50" y="115.61" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="600" fill="#0f172a">76.4%</text><text x="592.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">10 ws</text><line x1="358.00" y1="258.00" x2="626.00" y2="258.00" stroke="#cbd5e1" stroke-width="1"/><rect x="660.00" y="64.00" width="300.00" height="220.00" rx="10" fill="#f8fafc" stroke="#e2e8f0"/><text x="676.00" y="86.00" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#0f172a">Relative Miss</text><rect x="692.50" y="120.61" width="34.00" height="137.39" rx="3" fill="#dc2626" opacity="0.95" stroke="none" stroke-width="0"/><text x="709.50" y="115.61" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">0.9%</text><text x="709.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">1 ws</text><rect x="759.50" y="120.95" width="34.00" height="137.05" rx="3" fill="#dc2626" opacity="0.95" stroke="none" stroke-width="0"/><text x="776.50" y="115.95" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">0.9%</text><text x="776.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">2 ws</text><rect x="826.50" y="121.96" width="34.00" height="136.04" rx="3" fill="#dc2626" opacity="0.95" stroke="none" stroke-width="0"/><text x="843.50" y="116.96" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">0.9%</text><text x="843.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">5 ws</text><rect x="893.50" y="258.00" width="34.00" height="0.00" rx="3" fill="#dc2626" opacity="0.95" stroke="#0f172a" stroke-width="1.4"/><text x="910.50" y="253.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="600" fill="#0f172a">0.0%</text><text x="910.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">10 ws</text><line x1="676.00" y1="258.00" x2="944.00" y2="258.00" stroke="#cbd5e1" stroke-width="1"/></svg></div></article><article class='chart-card'><header class='chart-card-header'><h3>Latency &amp; Freshness</h3><p>Per-topology p50/p95 — lower is better.</p></header><div class='chart-body'><svg xmlns="http://www.w3.org/2000/svg" width="1302" height="328" viewBox="0 0 1302 328" role="img" aria-label="Latency and Freshness"><rect width="100%" height="100%" fill="#ffffff"/><text x="24" y="32" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="16" font-weight="600" fill="#0f172a">Latency and Freshness</text><text x="24" y="52" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" fill="#64748b">Lower is better. This shows which topology gets early copies and which one drifts stale.</text><rect x="24.00" y="64.00" width="300.00" height="220.00" rx="10" fill="#f8fafc" stroke="#e2e8f0"/><text x="40.00" y="86.00" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#0f172a">Arrival P50</text><rect x="56.50" y="120.61" width="34.00" height="137.39" rx="3" fill="#2563eb" opacity="0.95" stroke="none" stroke-width="0"/><text x="73.50" y="115.61" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">8.7ms</text><text x="73.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">1 ws</text><rect x="123.50" y="174.19" width="34.00" height="83.81" rx="3" fill="#2563eb" opacity="0.95" stroke="none" stroke-width="0"/><text x="140.50" y="169.19" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">5.3ms</text><text x="140.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">2 ws</text><rect x="190.50" y="235.53" width="34.00" height="22.47" rx="3" fill="#2563eb" opacity="0.95" stroke="none" stroke-width="0"/><text x="207.50" y="230.53" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">1.4ms</text><text x="207.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">5 ws</text><rect x="257.50" y="258.00" width="34.00" height="0.00" rx="3" fill="#2563eb" opacity="0.95" stroke="#0f172a" stroke-width="1.4"/><text x="274.50" y="253.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="600" fill="#0f172a">0.0ms</text><text x="274.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">10 ws</text><line x1="40.00" y1="258.00" x2="308.00" y2="258.00" stroke="#cbd5e1" stroke-width="1"/><rect x="342.00" y="64.00" width="300.00" height="220.00" rx="10" fill="#f8fafc" stroke="#e2e8f0"/><text x="358.00" y="86.00" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#0f172a">Arrival P95</text><rect x="374.50" y="120.61" width="34.00" height="137.39" rx="3" fill="#059669" opacity="0.95" stroke="none" stroke-width="0"/><text x="391.50" y="115.61" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">93.2ms</text><text x="391.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">1 ws</text><rect x="441.50" y="201.26" width="34.00" height="56.74" rx="3" fill="#059669" opacity="0.95" stroke="none" stroke-width="0"/><text x="458.50" y="196.26" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">38.5ms</text><text x="458.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">2 ws</text><rect x="508.50" y="241.31" width="34.00" height="16.69" rx="3" fill="#059669" opacity="0.95" stroke="none" stroke-width="0"/><text x="525.50" y="236.31" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">11.3ms</text><text x="525.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">5 ws</text><rect x="575.50" y="251.30" width="34.00" height="6.70" rx="3" fill="#059669" opacity="0.95" stroke="#0f172a" stroke-width="1.4"/><text x="592.50" y="246.30" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="600" fill="#0f172a">4.5ms</text><text x="592.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">10 ws</text><line x1="358.00" y1="258.00" x2="626.00" y2="258.00" stroke="#cbd5e1" stroke-width="1"/><rect x="660.00" y="64.00" width="300.00" height="220.00" rx="10" fill="#f8fafc" stroke="#e2e8f0"/><text x="676.00" y="86.00" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#0f172a">Freshness P50</text><rect x="692.50" y="120.61" width="34.00" height="137.39" rx="3" fill="#7c3aed" opacity="0.95" stroke="none" stroke-width="0"/><text x="709.50" y="115.61" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">62.6ms</text><text x="709.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">1 ws</text><rect x="759.50" y="135.73" width="34.00" height="122.27" rx="3" fill="#7c3aed" opacity="0.95" stroke="none" stroke-width="0"/><text x="776.50" y="130.73" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">55.7ms</text><text x="776.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">2 ws</text><rect x="826.50" y="145.51" width="34.00" height="112.49" rx="3" fill="#7c3aed" opacity="0.95" stroke="none" stroke-width="0"/><text x="843.50" y="140.51" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">51.2ms</text><text x="843.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">5 ws</text><rect x="893.50" y="151.03" width="34.00" height="106.97" rx="3" fill="#7c3aed" opacity="0.95" stroke="#0f172a" stroke-width="1.4"/><text x="910.50" y="146.03" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="600" fill="#0f172a">48.7ms</text><text x="910.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">10 ws</text><line x1="676.00" y1="258.00" x2="944.00" y2="258.00" stroke="#cbd5e1" stroke-width="1"/><rect x="978.00" y="64.00" width="300.00" height="220.00" rx="10" fill="#f8fafc" stroke="#e2e8f0"/><text x="994.00" y="86.00" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#0f172a">Freshness P95</text><rect x="1010.50" y="120.61" width="34.00" height="137.39" rx="3" fill="#ea580c" opacity="0.95" stroke="none" stroke-width="0"/><text x="1027.50" y="115.61" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">227.9ms</text><text x="1027.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">1 ws</text><rect x="1077.50" y="137.24" width="34.00" height="120.76" rx="3" fill="#ea580c" opacity="0.95" stroke="none" stroke-width="0"/><text x="1094.50" y="132.24" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">200.3ms</text><text x="1094.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">2 ws</text><rect x="1144.50" y="146.47" width="34.00" height="111.53" rx="3" fill="#ea580c" opacity="0.95" stroke="#0f172a" stroke-width="1.4"/><text x="1161.50" y="141.47" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="600" fill="#0f172a">185.0ms</text><text x="1161.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">5 ws</text><rect x="1211.50" y="141.19" width="34.00" height="116.81" rx="3" fill="#ea580c" opacity="0.95" stroke="none" stroke-width="0"/><text x="1228.50" y="136.19" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">193.7ms</text><text x="1228.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">10 ws</text><line x1="994.00" y1="258.00" x2="1262.00" y2="258.00" stroke="#cbd5e1" stroke-width="1"/></svg></div></article><article class='chart-card'><header class='chart-card-header'><h3>Relative Gap Counts</h3><p>Each metric scaled independently so small values stay readable.</p></header><div class='chart-body'><svg xmlns="http://www.w3.org/2000/svg" width="984" height="328" viewBox="0 0 984 328" role="img" aria-label="Relative Gap Counts"><rect width="100%" height="100%" fill="#ffffff"/><text x="24" y="32" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="16" font-weight="600" fill="#0f172a">Relative Gap Counts</text><text x="24" y="52" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" fill="#64748b">These are topology-relative gap runs, not authoritative venue loss.</text><rect x="24.00" y="64.00" width="300.00" height="220.00" rx="10" fill="#f8fafc" stroke="#e2e8f0"/><text x="40.00" y="86.00" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#0f172a">Gap Runs</text><rect x="56.50" y="120.61" width="34.00" height="137.39" rx="3" fill="#2563eb" opacity="0.95" stroke="none" stroke-width="0"/><text x="73.50" y="115.61" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">19</text><text x="73.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">1 ws</text><rect x="123.50" y="127.84" width="34.00" height="130.16" rx="3" fill="#2563eb" opacity="0.95" stroke="none" stroke-width="0"/><text x="140.50" y="122.84" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">18</text><text x="140.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">2 ws</text><rect x="190.50" y="149.53" width="34.00" height="108.47" rx="3" fill="#2563eb" opacity="0.95" stroke="none" stroke-width="0"/><text x="207.50" y="144.53" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">15</text><text x="207.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">5 ws</text><rect x="257.50" y="258.00" width="34.00" height="0.00" rx="3" fill="#2563eb" opacity="0.95" stroke="#0f172a" stroke-width="1.4"/><text x="274.50" y="253.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="600" fill="#0f172a">0</text><text x="274.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">10 ws</text><line x1="40.00" y1="258.00" x2="308.00" y2="258.00" stroke="#cbd5e1" stroke-width="1"/><rect x="342.00" y="64.00" width="300.00" height="220.00" rx="10" fill="#f8fafc" stroke="#e2e8f0"/><text x="358.00" y="86.00" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#0f172a">Largest Gap Events</text><rect x="374.50" y="120.61" width="34.00" height="137.39" rx="3" fill="#dc2626" opacity="0.95" stroke="none" stroke-width="0"/><text x="391.50" y="115.61" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">134</text><text x="391.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">1 ws</text><rect x="441.50" y="120.61" width="34.00" height="137.39" rx="3" fill="#dc2626" opacity="0.95" stroke="none" stroke-width="0"/><text x="458.50" y="115.61" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">134</text><text x="458.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">2 ws</text><rect x="508.50" y="120.61" width="34.00" height="137.39" rx="3" fill="#dc2626" opacity="0.95" stroke="none" stroke-width="0"/><text x="525.50" y="115.61" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">134</text><text x="525.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">5 ws</text><rect x="575.50" y="258.00" width="34.00" height="0.00" rx="3" fill="#dc2626" opacity="0.95" stroke="#0f172a" stroke-width="1.4"/><text x="592.50" y="253.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="600" fill="#0f172a">0</text><text x="592.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">10 ws</text><line x1="358.00" y1="258.00" x2="626.00" y2="258.00" stroke="#cbd5e1" stroke-width="1"/><rect x="660.00" y="64.00" width="300.00" height="220.00" rx="10" fill="#f8fafc" stroke="#e2e8f0"/><text x="676.00" y="86.00" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#0f172a">Relative Loss Events</text><rect x="692.50" y="120.61" width="34.00" height="137.39" rx="3" fill="#ea580c" opacity="0.95" stroke="none" stroke-width="0"/><text x="709.50" y="115.61" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">408</text><text x="709.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">1 ws</text><rect x="759.50" y="120.95" width="34.00" height="137.05" rx="3" fill="#ea580c" opacity="0.95" stroke="none" stroke-width="0"/><text x="776.50" y="115.95" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">407</text><text x="776.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">2 ws</text><rect x="826.50" y="121.96" width="34.00" height="136.04" rx="3" fill="#ea580c" opacity="0.95" stroke="none" stroke-width="0"/><text x="843.50" y="116.96" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">404</text><text x="843.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">5 ws</text><rect x="893.50" y="258.00" width="34.00" height="0.00" rx="3" fill="#ea580c" opacity="0.95" stroke="#0f172a" stroke-width="1.4"/><text x="910.50" y="253.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="600" fill="#0f172a">0</text><text x="910.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">10 ws</text><line x1="676.00" y1="258.00" x2="944.00" y2="258.00" stroke="#cbd5e1" stroke-width="1"/></svg></div></article><article class='chart-card'><header class='chart-card-header'><h3>Relative Gap Durations</h3><p>How long topology-relative gaps last.</p></header><div class='chart-body'><svg xmlns="http://www.w3.org/2000/svg" width="984" height="328" viewBox="0 0 984 328" role="img" aria-label="Relative Gap Durations"><rect width="100%" height="100%" fill="#ffffff"/><text x="24" y="32" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="16" font-weight="600" fill="#0f172a">Relative Gap Durations</text><text x="24" y="52" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" fill="#64748b">Longer runs mean the topology went absent while other sockets were still seeing events.</text><rect x="24.00" y="64.00" width="300.00" height="220.00" rx="10" fill="#f8fafc" stroke="#e2e8f0"/><text x="40.00" y="86.00" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#0f172a">Largest Gap</text><rect x="56.50" y="120.61" width="34.00" height="137.39" rx="3" fill="#2563eb" opacity="0.95" stroke="#0f172a" stroke-width="1.4"/><text x="73.50" y="115.61" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="600" fill="#0f172a">11.1ms</text><text x="73.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">1 ws</text><rect x="123.50" y="120.61" width="34.00" height="137.39" rx="3" fill="#2563eb" opacity="0.95" stroke="#0f172a" stroke-width="1.4"/><text x="140.50" y="115.61" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="600" fill="#0f172a">11.1ms</text><text x="140.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">2 ws</text><rect x="190.50" y="120.61" width="34.00" height="137.39" rx="3" fill="#2563eb" opacity="0.95" stroke="#0f172a" stroke-width="1.4"/><text x="207.50" y="115.61" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="600" fill="#0f172a">11.1ms</text><text x="207.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">5 ws</text><text x="274.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">10 ws</text><line x1="40.00" y1="258.00" x2="308.00" y2="258.00" stroke="#cbd5e1" stroke-width="1"/><rect x="342.00" y="64.00" width="300.00" height="220.00" rx="10" fill="#f8fafc" stroke="#e2e8f0"/><text x="358.00" y="86.00" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#0f172a">Gap Duration P95</text><rect x="374.50" y="192.12" width="34.00" height="65.88" rx="3" fill="#059669" opacity="0.95" stroke="#0f172a" stroke-width="1.4"/><text x="391.50" y="187.12" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="600" fill="#0f172a">1.9ms</text><text x="391.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">1 ws</text><rect x="441.50" y="174.24" width="34.00" height="83.76" rx="3" fill="#059669" opacity="0.95" stroke="none" stroke-width="0"/><text x="458.50" y="169.24" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">2.4ms</text><text x="458.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">2 ws</text><rect x="508.50" y="120.61" width="34.00" height="137.39" rx="3" fill="#059669" opacity="0.95" stroke="none" stroke-width="0"/><text x="525.50" y="115.61" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">3.9ms</text><text x="525.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">5 ws</text><text x="592.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">10 ws</text><line x1="358.00" y1="258.00" x2="626.00" y2="258.00" stroke="#cbd5e1" stroke-width="1"/><rect x="660.00" y="64.00" width="300.00" height="220.00" rx="10" fill="#f8fafc" stroke="#e2e8f0"/><text x="676.00" y="86.00" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#0f172a">Inter-Event Gap P95</text><rect x="692.50" y="120.61" width="34.00" height="137.39" rx="3" fill="#7c3aed" opacity="0.95" stroke="none" stroke-width="0"/><text x="709.50" y="115.61" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">20.2ms</text><text x="709.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">1 ws</text><rect x="759.50" y="129.12" width="34.00" height="128.88" rx="3" fill="#7c3aed" opacity="0.95" stroke="none" stroke-width="0"/><text x="776.50" y="124.12" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">18.9ms</text><text x="776.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">2 ws</text><rect x="826.50" y="133.77" width="34.00" height="124.23" rx="3" fill="#7c3aed" opacity="0.95" stroke="none" stroke-width="0"/><text x="843.50" y="128.77" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="500" fill="#475569">18.2ms</text><text x="843.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">5 ws</text><rect x="893.50" y="136.71" width="34.00" height="121.29" rx="3" fill="#7c3aed" opacity="0.95" stroke="#0f172a" stroke-width="1.4"/><text x="910.50" y="131.71" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" font-weight="600" fill="#0f172a">17.8ms</text><text x="910.50" y="276.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">10 ws</text><line x1="676.00" y1="258.00" x2="944.00" y2="258.00" stroke="#cbd5e1" stroke-width="1"/></svg></div></article><article class='chart-card'><header class='chart-card-header'><h3>Warmup vs Post-Warmup Freshness</h3><p>Warmup window compared against the first stable window after connect/rebind.</p></header><div class='chart-body'><svg xmlns="http://www.w3.org/2000/svg" width="920" height="360" viewBox="0 0 920 360" role="img" aria-label="Warmup Quality Check"><rect width="100%" height="100%" fill="#ffffff"/><text x="24" y="32" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="16" font-weight="600" fill="#0f172a">Warmup Quality Check</text><text x="24" y="52" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" fill="#64748b">Compare warmup against the first stable window after each connect or market rebind.</text><rect x="78" y="22" width="10" height="10" rx="2" fill="#dc2626"/><text x="94" y="31" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" fill="#475569">Warmup Freshness P95</text><rect x="218" y="22" width="10" height="10" rx="2" fill="#059669"/><text x="234" y="31" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" fill="#475569">Post Freshness P95</text><rect x="358" y="22" width="10" height="10" rx="2" fill="#ea580c"/><text x="374" y="31" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" fill="#475569">Freshness Delta</text><line x1="78" y1="288" x2="896" y2="288" stroke="#cbd5e1" stroke-width="1"/><line x1="78" y1="60" x2="78" y2="288" stroke="#cbd5e1" stroke-width="1"/><line x1="78" y1="60.00" x2="896" y2="60.00" stroke="#eef2f7" stroke-width="1"/><text x="68" y="64.00" text-anchor="end" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#94a3b8">883.6ms</text><line x1="78" y1="105.60" x2="896" y2="105.60" stroke="#eef2f7" stroke-width="1"/><text x="68" y="109.60" text-anchor="end" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#94a3b8">686.4ms</text><line x1="78" y1="151.20" x2="896" y2="151.20" stroke="#eef2f7" stroke-width="1"/><text x="68" y="155.20" text-anchor="end" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#94a3b8">489.2ms</text><line x1="78" y1="196.80" x2="896" y2="196.80" stroke="#eef2f7" stroke-width="1"/><text x="68" y="200.80" text-anchor="end" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#94a3b8">292.0ms</text><line x1="78" y1="242.40" x2="896" y2="242.40" stroke="#eef2f7" stroke-width="1"/><text x="68" y="246.40" text-anchor="end" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#94a3b8">94.8ms</text><line x1="78" y1="288.00" x2="896" y2="288.00" stroke="#eef2f7" stroke-width="1"/><text x="68" y="292.00" text-anchor="end" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#94a3b8">-102.4ms</text><line x1="78" y1="264.32" x2="896" y2="264.32" stroke="#cbd5e1" stroke-width="1.25"/><rect x="129.25" y="81.89" width="30.00" height="182.43" rx="3" fill="#dc2626" opacity="0.95"/><text x="144.25" y="75.89" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">788.9ms</text><rect x="165.25" y="130.27" width="30.00" height="134.06" rx="3" fill="#059669" opacity="0.95"/><text x="180.25" y="124.27" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">579.7ms</text><rect x="201.25" y="215.95" width="30.00" height="48.37" rx="3" fill="#ea580c" opacity="0.95"/><text x="216.25" y="209.95" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">209.2ms</text><text x="180.25" y="314.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#0f172a">1 ws</text><rect x="333.75" y="150.41" width="30.00" height="113.91" rx="3" fill="#dc2626" opacity="0.95"/><text x="348.75" y="144.41" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">492.6ms</text><rect x="369.75" y="140.11" width="30.00" height="124.22" rx="3" fill="#059669" opacity="0.95"/><text x="384.75" y="134.11" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">537.1ms</text><rect x="405.75" y="264.32" width="30.00" height="10.30" rx="3" fill="#ea580c" opacity="0.95"/><text x="420.75" y="288.63" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">-44.5ms</text><text x="384.75" y="314.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#0f172a">2 ws</text><rect x="538.25" y="166.14" width="30.00" height="98.18" rx="3" fill="#dc2626" opacity="0.95"/><text x="553.25" y="160.14" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">424.6ms</text><rect x="574.25" y="154.07" width="30.00" height="110.26" rx="3" fill="#059669" opacity="0.95"/><text x="589.25" y="148.07" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">476.8ms</text><rect x="610.25" y="264.32" width="30.00" height="12.07" rx="3" fill="#ea580c" opacity="0.95"/><text x="625.25" y="290.40" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">-52.2ms</text><text x="589.25" y="314.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#0f172a">5 ws</text><rect x="742.75" y="161.52" width="30.00" height="102.81" rx="3" fill="#dc2626" opacity="0.95"/><text x="757.75" y="155.52" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">444.6ms</text><rect x="778.75" y="140.38" width="30.00" height="123.94" rx="3" fill="#059669" opacity="0.95"/><text x="793.75" y="134.38" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">536.0ms</text><rect x="814.75" y="264.32" width="30.00" height="21.14" rx="3" fill="#ea580c" opacity="0.95"/><text x="829.75" y="299.46" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">-91.4ms</text><text x="793.75" y="314.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#0f172a">10 ws</text></svg></div></article>
+      </div>
+    </section>
+
+    <section class='section'><div class='section-head'><h2>Supporting charts</h2><p>Where pool-level wins come from when individual sockets remain noisy.</p></div><div class='charts'><article class='chart-card'><header class='chart-card-header'><h3>Connection Outliers</h3><p>The 12 worst sockets by freshness P95 — shows the long tail behind pool averages.</p></header><div class='chart-body'><svg xmlns="http://www.w3.org/2000/svg" width="920" height="360" viewBox="0 0 920 360" role="img" aria-label="Connection Outliers"><rect width="100%" height="100%" fill="#ffffff"/><text x="24" y="32" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="16" font-weight="600" fill="#0f172a">Connection Outliers</text><text x="24" y="52" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" fill="#64748b">Worst 12 connections by freshness P95, with arrival P95 as a tie-breaker view.</text><rect x="78" y="22" width="10" height="10" rx="2" fill="#dc2626"/><text x="94" y="31" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" fill="#475569">Freshness P95</text><rect x="218" y="22" width="10" height="10" rx="2" fill="#2563eb"/><text x="234" y="31" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" fill="#475569">Arrival P95</text><line x1="78" y1="288" x2="896" y2="288" stroke="#cbd5e1" stroke-width="1"/><line x1="78" y1="60" x2="78" y2="288" stroke="#cbd5e1" stroke-width="1"/><line x1="78" y1="60.00" x2="896" y2="60.00" stroke="#eef2f7" stroke-width="1"/><text x="68" y="64.00" text-anchor="end" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#94a3b8">591.9ms</text><line x1="78" y1="105.60" x2="896" y2="105.60" stroke="#eef2f7" stroke-width="1"/><text x="68" y="109.60" text-anchor="end" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#94a3b8">473.5ms</text><line x1="78" y1="151.20" x2="896" y2="151.20" stroke="#eef2f7" stroke-width="1"/><text x="68" y="155.20" text-anchor="end" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#94a3b8">355.2ms</text><line x1="78" y1="196.80" x2="896" y2="196.80" stroke="#eef2f7" stroke-width="1"/><text x="68" y="200.80" text-anchor="end" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#94a3b8">236.8ms</text><line x1="78" y1="242.40" x2="896" y2="242.40" stroke="#eef2f7" stroke-width="1"/><text x="68" y="246.40" text-anchor="end" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#94a3b8">118.4ms</text><line x1="78" y1="288.00" x2="896" y2="288.00" stroke="#eef2f7" stroke-width="1"/><text x="68" y="292.00" text-anchor="end" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#94a3b8">0.0ms</text><rect x="85.50" y="84.43" width="23.59" height="203.57" rx="3" fill="#dc2626" opacity="0.95"/><text x="97.29" y="78.43" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">528.5ms</text><rect x="115.08" y="184.83" width="23.59" height="103.17" rx="3" fill="#2563eb" opacity="0.95"/><text x="126.88" y="178.83" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">267.8ms</text><text x="112.08" y="314.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#0f172a">10/03</text><rect x="153.66" y="125.39" width="23.59" height="162.61" rx="3" fill="#dc2626" opacity="0.95"/><text x="165.46" y="119.39" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">422.2ms</text><rect x="183.25" y="185.64" width="23.59" height="102.36" rx="3" fill="#2563eb" opacity="0.95"/><text x="195.04" y="179.64" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">265.7ms</text><text x="180.25" y="314.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#0f172a">10/08</text><rect x="221.83" y="174.93" width="23.59" height="113.07" rx="3" fill="#dc2626" opacity="0.95"/><text x="233.62" y="168.93" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">293.6ms</text><rect x="251.42" y="231.93" width="23.59" height="56.07" rx="3" fill="#2563eb" opacity="0.95"/><text x="263.21" y="225.93" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">145.6ms</text><text x="248.42" y="314.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#0f172a">10/10</text><rect x="290.00" y="194.06" width="23.59" height="93.94" rx="3" fill="#dc2626" opacity="0.95"/><text x="301.79" y="188.06" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">243.9ms</text><rect x="319.58" y="259.30" width="23.59" height="28.70" rx="3" fill="#2563eb" opacity="0.95"/><text x="331.38" y="253.30" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">74.5ms</text><text x="316.58" y="314.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#0f172a">10/06</text><rect x="358.17" y="194.42" width="23.59" height="93.58" rx="3" fill="#dc2626" opacity="0.95"/><text x="369.96" y="188.42" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">243.0ms</text><rect x="387.75" y="248.09" width="23.59" height="39.91" rx="3" fill="#2563eb" opacity="0.95"/><text x="399.54" y="242.09" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">103.6ms</text><text x="384.75" y="314.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#0f172a">10/02</text><rect x="426.33" y="196.89" width="23.59" height="91.11" rx="3" fill="#dc2626" opacity="0.95"/><text x="438.12" y="190.89" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">236.6ms</text><rect x="455.92" y="253.42" width="23.59" height="34.58" rx="3" fill="#2563eb" opacity="0.95"/><text x="467.71" y="247.42" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">89.8ms</text><text x="452.92" y="314.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#0f172a">10/09</text><rect x="494.50" y="197.34" width="23.59" height="90.66" rx="3" fill="#dc2626" opacity="0.95"/><text x="506.29" y="191.34" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">235.4ms</text><rect x="524.08" y="257.24" width="23.59" height="30.76" rx="3" fill="#2563eb" opacity="0.95"/><text x="535.88" y="251.24" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">79.9ms</text><text x="521.08" y="314.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#0f172a">2/01</text><rect x="562.66" y="198.29" width="23.59" height="89.71" rx="3" fill="#dc2626" opacity="0.95"/><text x="574.46" y="192.29" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">232.9ms</text><rect x="592.25" y="254.40" width="23.59" height="33.60" rx="3" fill="#2563eb" opacity="0.95"/><text x="604.04" y="248.40" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">87.2ms</text><text x="589.25" y="314.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#0f172a">5/03</text><rect x="630.83" y="198.30" width="23.59" height="89.70" rx="3" fill="#dc2626" opacity="0.95"/><text x="642.62" y="192.30" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">232.9ms</text><rect x="660.42" y="250.68" width="23.59" height="37.32" rx="3" fill="#2563eb" opacity="0.95"/><text x="672.21" y="244.68" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">96.9ms</text><text x="657.42" y="314.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#0f172a">2/02</text><rect x="699.00" y="199.31" width="23.59" height="88.69" rx="3" fill="#dc2626" opacity="0.95"/><text x="710.79" y="193.31" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">230.3ms</text><rect x="728.58" y="252.76" width="23.59" height="35.24" rx="3" fill="#2563eb" opacity="0.95"/><text x="740.38" y="246.76" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">91.5ms</text><text x="725.58" y="314.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#0f172a">10/05</text><rect x="767.16" y="200.23" width="23.59" height="87.77" rx="3" fill="#dc2626" opacity="0.95"/><text x="778.96" y="194.23" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">227.9ms</text><rect x="796.75" y="252.11" width="23.59" height="35.89" rx="3" fill="#2563eb" opacity="0.95"/><text x="808.54" y="246.11" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">93.2ms</text><text x="793.75" y="314.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#0f172a">1/01</text><rect x="835.33" y="200.74" width="23.59" height="87.26" rx="3" fill="#dc2626" opacity="0.95"/><text x="847.12" y="194.74" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">226.6ms</text><rect x="864.92" y="251.99" width="23.59" height="36.01" rx="3" fill="#2563eb" opacity="0.95"/><text x="876.71" y="245.99" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="10" fill="#475569">93.5ms</text><text x="861.92" y="314.00" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#0f172a">5/01</text></svg></div></article></div></section>
+
+    <section class='panel caveats'><h3>Caveats</h3><ul><li>Relative loss is topology-relative within this run, not authoritative venue loss.</li><li>Freshness depends on the venue timestamp carried by each websocket event.</li><li>Warmup is applied per connection and after reconnects; those observations are recorded but excluded from scored metrics.</li><li>Unique event aggregation uses a rolling 30.0s retention window to keep memory bounded on long runs.</li><li>Latency/freshness percentiles and histograms are estimated from bounded reservoir samples of up to 8192 values per metric.</li></ul></section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,796 @@
+#!/usr/bin/env python3
+"""
+Burst-submit Polymarket CLOB v2 testnet orders to probe duplicate handling
+and latency under concurrent API calls.
+
+For each fanout in --counts, the script:
+1. Signs N passive GTC limit orders with the exact same V2 timestamp.
+2. Sends them as N concurrent POST /order API calls.
+3. Measures per-request latency and records the returned status/error.
+4. Checks how many new open orders actually appeared on the book.
+5. Optionally cancels those new orders to keep the test market clean.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import statistics
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from decimal import Decimal
+from pathlib import Path
+from typing import Any
+from unittest.mock import patch
+
+from dotenv import load_dotenv
+from py_clob_client_v2 import (
+    ApiCreds,
+    AssetType,
+    BalanceAllowanceParams,
+    ClobClient,
+    OpenOrderParams,
+    OrderArgs,
+    OrderType,
+    PartialCreateOrderOptions,
+    Side,
+)
+
+
+DEFAULT_HOST = "https://clob-v2.polymarket.com"
+DEFAULT_CHAIN_ID = 80002
+DEFAULT_SETTLE_SECONDS = 1.0
+DEFAULT_OUTPUT_DIR = Path("recordings/order-burst")
+BUY = "BUY"
+SELL = "SELL"
+
+load_dotenv()
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Fire concurrent V2 testnet order submissions with a shared "
+            "timestamp to test duplicate handling and latency."
+        )
+    )
+    parser.add_argument(
+        "--token-id",
+        required=True,
+        help="Outcome token ID to trade on clob-v2.",
+    )
+    parser.add_argument(
+        "--side",
+        choices=(BUY, SELL),
+        default=BUY,
+        help="Order side. Default: BUY.",
+    )
+    parser.add_argument(
+        "--price",
+        type=Decimal,
+        help=(
+            "Limit price to submit. If omitted, the script chooses a very "
+            "passive default that should not cross the book."
+        ),
+    )
+    parser.add_argument(
+        "--size",
+        type=Decimal,
+        help="Order size in shares. Defaults to the market min order size.",
+    )
+    parser.add_argument(
+        "--counts",
+        default="1,2,5,10",
+        help="Comma-separated fanouts to test. Default: 1,2,5,10.",
+    )
+    parser.add_argument(
+        "--host",
+        default=os.environ.get("CLOB_API_URL", DEFAULT_HOST),
+        help=f"CLOB host. Default: {DEFAULT_HOST}.",
+    )
+    parser.add_argument(
+        "--chain-id",
+        type=int,
+        default=int(os.environ.get("CHAIN_ID", DEFAULT_CHAIN_ID)),
+        help=f"Chain ID. Default: {DEFAULT_CHAIN_ID} (Amoy testnet).",
+    )
+    parser.add_argument(
+        "--post-only",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Submit orders as post-only. Default: enabled.",
+    )
+    parser.add_argument(
+        "--cleanup",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Cancel newly-created orders after each burst. Default: enabled.",
+    )
+    parser.add_argument(
+        "--settle-seconds",
+        type=float,
+        default=DEFAULT_SETTLE_SECONDS,
+        help=(
+            "Seconds to wait before checking open orders after a burst. "
+            f"Default: {DEFAULT_SETTLE_SECONDS}."
+        ),
+    )
+    parser.add_argument(
+        "--json-out",
+        type=Path,
+        help=(
+            "Path to write the full result JSON. "
+            "Default: recordings/order-burst/<timestamp>/summary.json."
+        ),
+    )
+    return parser.parse_args()
+
+
+def parse_counts(raw: str) -> list[int]:
+    counts: list[int] = []
+    for part in raw.split(","):
+        value = int(part.strip())
+        if value <= 0:
+            raise ValueError("all burst counts must be positive integers")
+        counts.append(value)
+    return counts
+
+
+def decimal_to_str(value: Decimal) -> str:
+    normalized = value.normalize()
+    text = format(normalized, "f")
+    return text.rstrip("0").rstrip(".") if "." in text else text
+
+
+def require_env(name: str) -> str:
+    value = os.environ.get(name)
+    if not value:
+        raise RuntimeError(f"missing required environment variable: {name}")
+    return value
+
+
+def env_truthy(name: str) -> bool:
+    value = os.environ.get(name, "")
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def maybe_load_creds_from_env() -> ApiCreds | None:
+    if env_truthy("FORCE_DERIVE"):
+        return None
+
+    api_key = os.environ.get("CLOB_API_KEY")
+    api_secret = os.environ.get("CLOB_SECRET")
+    api_passphrase = os.environ.get("CLOB_PASS_PHRASE") or os.environ.get("CLOB_PASSPHRASE")
+    if api_key and api_secret and api_passphrase:
+        return ApiCreds(
+            api_key=api_key,
+            api_secret=api_secret,
+            api_passphrase=api_passphrase,
+        )
+    return None
+
+
+def env_builder_code() -> str | None:
+    return os.environ.get("BUILDER_CODE") or os.environ.get("POLY_BUILDER_CODE")
+
+
+def candidate_chain_ids(initial_chain_id: int) -> list[int]:
+    chain_ids = [initial_chain_id]
+    if initial_chain_id == 80002:
+        chain_ids.append(137)
+    elif initial_chain_id == 137:
+        chain_ids.append(80002)
+    return chain_ids
+
+
+def new_client(
+    host: str,
+    chain_id: int,
+    private_key: str,
+    signature_type: int,
+    funder: str | None,
+    creds: ApiCreds | None = None,
+) -> ClobClient:
+    return ClobClient(
+        host=host,
+        chain_id=chain_id,
+        key=private_key,
+        creds=creds,
+        signature_type=signature_type,
+        funder=funder,
+        use_server_time=True,
+    )
+
+
+def derive_creds(
+    host: str,
+    initial_chain_id: int,
+    private_key: str,
+    signature_type: int,
+    funder: str | None,
+) -> tuple[int, ApiCreds]:
+    auth_errors: list[tuple[int, str]] = []
+    resolved_creds: ApiCreds | None = None
+    resolved_chain_id: int | None = None
+
+    print("Deriving CLOB API credentials from PK...")
+    for chain_id in candidate_chain_ids(initial_chain_id):
+        bootstrap_client = new_client(
+            host=host,
+            chain_id=chain_id,
+            private_key=private_key,
+            signature_type=signature_type,
+            funder=funder,
+        )
+        address = bootstrap_client.get_address()
+        print(f"[auth] trying address={address} chain_id={chain_id} use_server_time=true")
+        try:
+            resolved_creds = bootstrap_client.create_or_derive_api_key()
+            resolved_chain_id = chain_id
+            break
+        except Exception as exc:
+            auth_errors.append((chain_id, str(exc)))
+
+    if resolved_creds is None or resolved_chain_id is None:
+        attempts = "; ".join(
+            f"chain_id={chain_id}: {message}" for chain_id, message in auth_errors
+        )
+        raise RuntimeError(
+            "could not derive Polymarket API credentials from PK. "
+            f"Tried {attempts}. "
+            "Most likely causes: "
+            "1) wrong chain id for this host, "
+            "2) PK is not the actual signing key for this Polymarket account, "
+            "3) this is a proxy/safe wallet and you also need the correct signer key plus FUNDER/SIGNATURE_TYPE, "
+            "or 4) you should reuse existing CLOB_API_KEY/CLOB_SECRET/CLOB_PASS_PHRASE instead of deriving."
+        )
+
+    return resolved_chain_id, resolved_creds
+
+
+def l2_preflight(client: ClobClient) -> None:
+    client.get_api_keys()
+
+
+def build_client(args: argparse.Namespace) -> ClobClient:
+    private_key = require_env("PK")
+    signature_type = int(os.environ.get("SIGNATURE_TYPE", "0"))
+    funder = os.environ.get("FUNDER")
+    creds = maybe_load_creds_from_env()
+    resolved_chain_id = args.chain_id
+
+    if creds is not None:
+        client = new_client(
+            host=args.host,
+            chain_id=resolved_chain_id,
+            private_key=private_key,
+            signature_type=signature_type,
+            funder=funder,
+            creds=creds,
+        )
+        print(
+            f"Using CLOB API credentials from environment for address {client.get_address()} "
+            "(set FORCE_DERIVE=1 to ignore them)"
+        )
+        try:
+            l2_preflight(client)
+            client.get_version()
+            return client
+        except Exception as exc:
+            print(f"[auth] environment L2 credentials failed preflight: {exc}")
+            print(
+                "[auth] if these are builder-program credentials, they cannot replace user "
+                "CLOB API credentials. Falling back to user credential derivation from PK."
+            )
+
+    resolved_chain_id, resolved_creds = derive_creds(
+        host=args.host,
+        initial_chain_id=args.chain_id,
+        private_key=private_key,
+        signature_type=signature_type,
+        funder=funder,
+    )
+
+    if resolved_chain_id != args.chain_id:
+        print(
+            f"[auth] chain_id={args.chain_id} failed, but chain_id={resolved_chain_id} succeeded. "
+            "Continuing with the successful chain id."
+        )
+
+    client = new_client(
+        host=args.host,
+        chain_id=resolved_chain_id,
+        private_key=private_key,
+        signature_type=signature_type,
+        funder=funder,
+        creds=resolved_creds,
+    )
+    l2_preflight(client)
+    client.get_version()
+    return client
+
+
+def get_book_field(book: dict[str, Any], key: str, default: Any = None) -> Any:
+    value = book.get(key, default)
+    return default if value in (None, "") else value
+
+
+def to_jsonable(value: Any) -> Any:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, Decimal):
+        return str(value)
+    if isinstance(value, dict):
+        return {str(key): to_jsonable(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [to_jsonable(item) for item in value]
+    if hasattr(value, "__dict__"):
+        return to_jsonable(vars(value))
+    return str(value)
+
+
+def compact_json(value: Any) -> str:
+    return json.dumps(
+        to_jsonable(value),
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+
+
+def find_first_value(payload: Any, keys: tuple[str, ...]) -> Any | None:
+    if hasattr(payload, "__dict__"):
+        payload = vars(payload)
+
+    if isinstance(payload, dict):
+        for key in keys:
+            value = payload.get(key)
+            if value not in (None, "", [], {}):
+                return value
+        for value in payload.values():
+            found = find_first_value(value, keys)
+            if found not in (None, "", [], {}):
+                return found
+        return None
+
+    if isinstance(payload, list):
+        for item in payload:
+            found = find_first_value(item, keys)
+            if found not in (None, "", [], {}):
+                return found
+
+    return None
+
+
+def summarize_balance_allowance(payload: dict[str, Any]) -> str:
+    balance = find_first_value(
+        payload,
+        ("balance", "available", "availableBalance", "available_balance"),
+    )
+    allowance = find_first_value(
+        payload,
+        ("allowance", "approved", "availableAllowance", "available_allowance"),
+    )
+    parts = []
+    if balance is not None:
+        parts.append(f"balance={balance}")
+    if allowance is not None:
+        parts.append(f"allowance={allowance}")
+    return ", ".join(parts) if parts else "raw only"
+
+
+def best_price(levels: list[dict[str, Any]], side: str) -> Decimal | None:
+    if not levels:
+        return None
+    prices = [Decimal(str(level["price"])) for level in levels]
+    return min(prices) if side == BUY else max(prices)
+
+
+def choose_passive_price(side: str, tick_size: Decimal) -> Decimal:
+    if side == BUY:
+        return tick_size
+    return Decimal("1") - tick_size
+
+
+def resolve_order_config(
+    client: ClobClient,
+    token_id: str,
+    side: str,
+    user_price: Decimal | None,
+    user_size: Decimal | None,
+) -> tuple[Decimal, Decimal, PartialCreateOrderOptions, dict[str, Any]]:
+    book = client.get_order_book(token_id)
+    tick_size = Decimal(str(get_book_field(book, "tick_size")))
+    min_order_size = Decimal(str(get_book_field(book, "min_order_size", "5")))
+    neg_risk = bool(get_book_field(book, "neg_risk", False))
+
+    price = user_price if user_price is not None else choose_passive_price(side, tick_size)
+    size = user_size if user_size is not None else min_order_size
+
+    best_ask = best_price(get_book_field(book, "asks", []), BUY)
+    best_bid = best_price(get_book_field(book, "bids", []), SELL)
+
+    if side == BUY and best_ask is not None and price >= best_ask:
+        raise RuntimeError(
+            f"default/selected BUY price {price} crosses best ask {best_ask}; "
+            "pass an explicit lower --price"
+        )
+    if side == SELL and best_bid is not None and price <= best_bid:
+        raise RuntimeError(
+            f"default/selected SELL price {price} crosses best bid {best_bid}; "
+            "pass an explicit higher --price"
+        )
+
+    options = PartialCreateOrderOptions(
+        tick_size=decimal_to_str(tick_size),
+        neg_risk=neg_risk,
+    )
+    return price, size, options, book
+
+
+def get_balance_allowance_preflight(
+    client: ClobClient,
+    token_id: str,
+    side: str,
+) -> dict[str, dict[str, Any]]:
+    snapshot = {
+        "collateral": to_jsonable(
+            client.get_balance_allowance(
+                BalanceAllowanceParams(asset_type=AssetType.COLLATERAL)
+            )
+        )
+    }
+    if side == SELL:
+        snapshot["conditional"] = to_jsonable(
+            client.get_balance_allowance(
+                BalanceAllowanceParams(
+                    asset_type=AssetType.CONDITIONAL,
+                    token_id=token_id,
+                )
+            )
+        )
+    return snapshot
+
+
+def print_balance_allowance_preflight(snapshot: dict[str, dict[str, Any]]) -> None:
+    print("Balance / allowance preflight:")
+    for label, payload in snapshot.items():
+        print(f"  {label}: {summarize_balance_allowance(payload)}")
+        print(f"  {label} raw: {compact_json(payload)}")
+
+
+def snapshot_open_orders(client: ClobClient, token_id: str) -> dict[str, dict[str, Any]]:
+    orders = client.get_open_orders(OpenOrderParams(asset_id=token_id))
+    return {order["id"]: order for order in orders}
+
+
+def build_shared_timestamp_orders(
+    client: ClobClient,
+    token_id: str,
+    price: Decimal,
+    size: Decimal,
+    side: str,
+    options: PartialCreateOrderOptions,
+    count: int,
+) -> tuple[int, list[Any]]:
+    shared_timestamp_ms = time.time_ns() // 1_000_000
+    shared_timestamp_ns = shared_timestamp_ms * 1_000_000
+    sdk_side = Side.BUY if side == BUY else Side.SELL
+    builder_code = env_builder_code()
+
+    orders: list[Any] = []
+    with patch(
+        "py_clob_client_v2.order_builder.builder.time.time_ns",
+        return_value=shared_timestamp_ns,
+    ):
+        for _ in range(count):
+            order = client.create_order(
+                order_args=OrderArgs(
+                    token_id=token_id,
+                    price=float(price),
+                    side=sdk_side,
+                    size=float(size),
+                    builder_code=builder_code or "",
+                ),
+                options=options,
+            )
+            orders.append(order)
+    return shared_timestamp_ms, orders
+
+
+def extract_error_text(response: Any) -> str:
+    if isinstance(response, BaseException):
+        return str(response)
+    if not isinstance(response, dict):
+        return ""
+
+    for key in ("errorMsg", "error"):
+        value = response.get(key)
+        if isinstance(value, str) and value:
+            return value
+        if isinstance(value, dict) and value:
+            return json.dumps(value, sort_keys=True)
+    return ""
+
+
+def response_kind(response: Any) -> str:
+    error_text = extract_error_text(response)
+    if "INVALID_ORDER_DUPLICATED" in error_text:
+        return "duplicate"
+    if isinstance(response, dict) and response.get("success") is True:
+        return "success"
+    if error_text:
+        return "error"
+    return "unknown"
+
+
+def post_one(
+    client: ClobClient,
+    order: Any,
+    post_only: bool,
+    barrier: threading.Barrier,
+    index: int,
+) -> dict[str, Any]:
+    barrier.wait()
+    started_ns = time.perf_counter_ns()
+    try:
+        response = client.post_order(order, OrderType.GTC, post_only=post_only)
+    except Exception as exc:
+        response = exc
+    elapsed_ms = (time.perf_counter_ns() - started_ns) / 1_000_000
+
+    payload: dict[str, Any] = {
+        "index": index,
+        "latency_ms": round(elapsed_ms, 3),
+        "timestamp_ms": int(order.timestamp),
+        "salt": str(order.salt),
+        "kind": response_kind(response),
+        "error": extract_error_text(response),
+    }
+
+    if isinstance(response, dict):
+        payload["response"] = response
+        payload["order_id"] = response.get("orderID")
+        payload["status"] = response.get("status")
+        payload["success"] = response.get("success")
+    else:
+        payload["response"] = {"exception": str(response)}
+        payload["success"] = False
+
+    return payload
+
+
+def summarise_requests(requests_payload: list[dict[str, Any]]) -> dict[str, Any]:
+    latencies = [item["latency_ms"] for item in requests_payload]
+    fastest_success = [
+        item["latency_ms"]
+        for item in requests_payload
+        if item.get("success") is True
+    ]
+
+    counts: dict[str, int] = {}
+    for item in requests_payload:
+        counts[item["kind"]] = counts.get(item["kind"], 0) + 1
+
+    summary = {
+        "request_counts": counts,
+        "latency_ms": {
+            "min": round(min(latencies), 3),
+            "median": round(statistics.median(latencies), 3),
+            "max": round(max(latencies), 3),
+        },
+        "fastest_success_ms": round(min(fastest_success), 3) if fastest_success else None,
+    }
+    return summary
+
+
+def cleanup_orders(client: ClobClient, order_ids: list[str]) -> dict[str, Any] | None:
+    if not order_ids:
+        return None
+    return client.cancel_orders(order_ids)
+
+
+def run_burst(
+    client: ClobClient,
+    token_id: str,
+    side: str,
+    price: Decimal,
+    size: Decimal,
+    options: PartialCreateOrderOptions,
+    fanout: int,
+    post_only: bool,
+    cleanup: bool,
+    settle_seconds: float,
+) -> dict[str, Any]:
+    before = snapshot_open_orders(client, token_id)
+    shared_timestamp_ms, orders = build_shared_timestamp_orders(
+        client=client,
+        token_id=token_id,
+        price=price,
+        size=size,
+        side=side,
+        options=options,
+        count=fanout,
+    )
+
+    barrier = threading.Barrier(fanout + 1)
+    requests_payload: list[dict[str, Any]] = []
+    with ThreadPoolExecutor(max_workers=fanout) as executor:
+        futures = [
+            executor.submit(post_one, client, order, post_only, barrier, index)
+            for index, order in enumerate(orders, start=1)
+        ]
+        barrier.wait()
+        for future in as_completed(futures):
+            requests_payload.append(future.result())
+
+    requests_payload.sort(key=lambda item: item["index"])
+    time.sleep(settle_seconds)
+
+    after = snapshot_open_orders(client, token_id)
+    new_order_ids = sorted(set(after) - set(before))
+    new_orders = [after[order_id] for order_id in new_order_ids]
+    cleanup_result = cleanup_orders(client, new_order_ids) if cleanup else None
+
+    return {
+        "fanout": fanout,
+        "shared_timestamp_ms": shared_timestamp_ms,
+        "requests": requests_payload,
+        "summary": summarise_requests(requests_payload),
+        "new_open_order_ids": new_order_ids,
+        "new_open_order_count": len(new_order_ids),
+        "new_open_orders": new_orders,
+        "cleanup_result": cleanup_result,
+    }
+
+
+def print_burst_summary(result: dict[str, Any]) -> None:
+    summary = result["summary"]
+    request_counts = summary["request_counts"]
+    latency = summary["latency_ms"]
+    print("\n" + "=" * 72)
+    print(
+        f"fanout={result['fanout']} | shared_timestamp_ms={result['shared_timestamp_ms']} "
+        f"| new_open_orders={result['new_open_order_count']}"
+    )
+    print(
+        "request outcomes: "
+        + ", ".join(f"{kind}={count}" for kind, count in sorted(request_counts.items()))
+    )
+    print(
+        f"latency ms: min={latency['min']:.3f} "
+        f"median={latency['median']:.3f} max={latency['max']:.3f}"
+    )
+    if summary["fastest_success_ms"] is not None:
+        print(f"fastest success ms: {summary['fastest_success_ms']:.3f}")
+    else:
+        print("fastest success ms: none")
+
+    for request_payload in result["requests"]:
+        print(
+            "  "
+            f"#{request_payload['index']} latency={request_payload['latency_ms']:.3f}ms "
+            f"timestamp={request_payload['timestamp_ms']} "
+            f"salt={request_payload['salt']} "
+            f"kind={request_payload['kind']} status={request_payload.get('status')!r} "
+            f"order_id={request_payload.get('order_id')!r} error={request_payload['error']!r}"
+        )
+
+    if result["cleanup_result"] is not None:
+        print(f"cleanup result: {json.dumps(result['cleanup_result'], sort_keys=True)}")
+
+
+def maybe_write_json(path: Path | None, payload: dict[str, Any]) -> None:
+    if path is None:
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(f"\nWrote full JSON results to {path}")
+
+
+def default_summary_path() -> Path:
+    timestamp = time.strftime("%Y%m%d_%H%M%S", time.localtime())
+    return DEFAULT_OUTPUT_DIR / timestamp / "summary.json"
+
+
+def main() -> None:
+    args = parse_args()
+    counts = parse_counts(args.counts)
+    client = build_client(args)
+    json_out = args.json_out or default_summary_path()
+
+    price, size, options, book = resolve_order_config(
+        client=client,
+        token_id=args.token_id,
+        side=args.side,
+        user_price=args.price,
+        user_size=args.size,
+    )
+    balance_allowance = get_balance_allowance_preflight(
+        client=client,
+        token_id=args.token_id,
+        side=args.side,
+    )
+
+    print(f"Host: {args.host}")
+    print(f"Requested chain ID: {args.chain_id}")
+    print(f"Resolved chain ID: {client.chain_id}")
+    if client.chain_id != args.chain_id:
+        print(
+            "WARNING: requested chain ID differs from the resolved chain ID. "
+            "Orders will be submitted using the resolved chain."
+        )
+    print(f"Token ID: {args.token_id}")
+    print(f"Side: {args.side}")
+    print(f"Price: {decimal_to_str(price)}")
+    print(f"Size: {decimal_to_str(size)}")
+    print(f"Tick size: {book.get('tick_size')}")
+    print(f"Neg risk: {book.get('neg_risk')}")
+    print(f"Best bid: {best_price(get_book_field(book, 'bids', []), SELL)}")
+    print(f"Best ask: {best_price(get_book_field(book, 'asks', []), BUY)}")
+    print(f"Counts: {counts}")
+    print(f"Post only: {args.post_only}")
+    print(f"Cleanup: {args.cleanup}")
+    print_balance_allowance_preflight(balance_allowance)
+
+    results = []
+    for fanout in counts:
+        result = run_burst(
+            client=client,
+            token_id=args.token_id,
+            side=args.side,
+            price=price,
+            size=size,
+            options=options,
+            fanout=fanout,
+            post_only=args.post_only,
+            cleanup=args.cleanup,
+            settle_seconds=args.settle_seconds,
+        )
+        results.append(result)
+        print_burst_summary(result)
+
+    baseline_fastest = next(
+        (
+            result["summary"]["fastest_success_ms"]
+            for result in results
+            if result["fanout"] == 1 and result["summary"]["fastest_success_ms"] is not None
+        ),
+        None,
+    )
+
+    if baseline_fastest is not None:
+        print("\n" + "=" * 72)
+        print(f"baseline fastest success (fanout=1): {baseline_fastest:.3f}ms")
+        for result in results:
+            fastest = result["summary"]["fastest_success_ms"]
+            if fastest is None:
+                print(f"fanout={result['fanout']} | no successful order placement")
+                continue
+            delta = baseline_fastest - fastest
+            print(
+                f"fanout={result['fanout']} | fastest_success={fastest:.3f}ms "
+                f"| improvement_vs_1={delta:.3f}ms"
+            )
+
+    payload = {
+        "host": args.host,
+        "chain_id": args.chain_id,
+        "token_id": args.token_id,
+        "side": args.side,
+        "price": decimal_to_str(price),
+        "size": decimal_to_str(size),
+        "counts": counts,
+        "post_only": args.post_only,
+        "cleanup": args.cleanup,
+        "resolved_chain_id": client.chain_id,
+        "balance_allowance_preflight": balance_allowance,
+        "results": results,
+    }
+    maybe_write_json(json_out, payload)
+
+
+if __name__ == "__main__":
+    main()

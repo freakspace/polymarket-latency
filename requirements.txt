@@ -1,2 +1,5 @@
 websocket-client==1.7.0
 requests==2.31.0
+websockets>=13,<16
+py-clob-client-v2==1.0.0
+python-dotenv==1.1.1

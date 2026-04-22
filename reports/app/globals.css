@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+  body {
+    @apply bg-bg-base text-text font-sans antialiased;
+    font-feature-settings: "cv11", "ss01", "ss03";
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  .eyebrow {
+    @apply text-xxs font-semibold uppercase tracking-[0.14em] text-text-subtle;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-xl border border-border bg-bg-surface shadow-[0_1px_2px_rgba(15,23,42,0.04)];
+  }
+  .card-pad {
+    @apply p-5;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xxs font-semibold;
+  }
+}
+
+.recharts-default-tooltip {
+  @apply !rounded-md !border !border-border !bg-bg-surface !text-text;
+}

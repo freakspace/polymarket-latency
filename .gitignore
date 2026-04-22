@@ -36,3 +36,10 @@ Thumbs.db
 
 # Project specific
 *.log
+.env
+.env.local
+
+# Next.js report app
+reports/node_modules/
+reports/.next/
+reports/out/

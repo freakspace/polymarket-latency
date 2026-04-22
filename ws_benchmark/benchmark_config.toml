@@ -1,0 +1,15 @@
+series_id = "10684"
+duration = 1000
+topologies = [1, 2, 5, 10]
+warmup_seconds = 10.0
+warmup_compare_window_seconds = 10.0
+ping_interval_seconds = 20.0
+event_retention_seconds = 30.0
+event_types = ["book", "price_change", "last_trade_price"]
+progress_interval_seconds = 5.0
+series_refresh_seconds = 5.0
+write_visuals = false
+write_event_log = false
+write_connection_log = false
+include_raw_event_payload = false
+verbose = false
