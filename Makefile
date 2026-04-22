@@ -7,7 +7,7 @@ REPORTS_DIR := recordings/ws-bench
 ORDER_BURST_SCRIPT := polymarket_order_burst.py
 ORDER_BURST_DIR := recordings/order-burst
 
-.PHONY: help benchmark report order-burst web
+.PHONY: help benchmark report order-burst web web-dev
 
 help:
 	@echo "Available targets:"
@@ -25,8 +25,11 @@ help:
 	@echo "    Writes $(ORDER_BURST_DIR)/<timestamp>/summary.json by default."
 	@echo ""
 	@echo "  make web"
-	@echo "    Start the Next.js report dashboard on http://localhost:3000"
-	@echo "    (runs 'npm run dev' in reports/; installs deps if missing)."
+	@echo "    Build and serve the Next.js report dashboard on http://0.0.0.0:3000"
+	@echo "    (runs 'next build' then 'next start' in reports/; installs deps if missing)."
+	@echo ""
+	@echo "  make web-dev"
+	@echo "    Start the Next.js dev server with HMR on http://localhost:3000."
 
 benchmark:
 	@echo "[make] running benchmark via $(BENCHMARK_SCRIPT)"
@@ -100,9 +103,23 @@ order-burst:
 	"$(PYTHON)" "$(ORDER_BURST_SCRIPT)" "$${args[@]}"
 
 web:
+	@set -euo pipefail; \
+	if [ ! -d reports/node_modules ]; then \
+		echo "[make] installing reports/ deps (first run)"; \
+		cd reports && npm install --no-fund --no-audit; \
+		cd ..; \
+	fi; \
+	port="$${PORT:-4242}"; \
+	host="$${HOST:-127.0.0.1}"; \
+	echo "[make] building Next.js app"; \
+	cd reports && npx next build; \
+	echo "[make] starting Next.js on http://$$host:$$port"; \
+	exec npx next start -H "$$host" -p "$$port"
+
+web-dev:
 	@if [ ! -d reports/node_modules ]; then \
 		echo "[make] installing reports/ deps (first run)"; \
 		cd reports && npm install --no-fund --no-audit; \
 	fi
-	@echo "[make] starting Next.js dev server at http://localhost:3000"
-	@cd reports && npm run dev
+	@echo "[make] starting Next.js dev server at http://127.0.0.1:4242"
+	@cd reports && npx next dev -H 127.0.0.1 -p 4242

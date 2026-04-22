@@ -1,11 +1,13 @@
 import { listRuns, recordingsRoot } from "@/lib/recordings";
+import { listOrderBursts, orderBurstRoot } from "@/lib/order-burst";
 import { RunCard } from "@/components/RunCard";
+import { OrderBurstCard } from "@/components/OrderBurstCard";
 import { UploadCard } from "@/components/UploadCard";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const runs = await listRuns();
+  const [runs, bursts] = await Promise.all([listRuns(), listOrderBursts()]);
 
   return (
     <main>
@@ -40,7 +42,43 @@ export default async function HomePage() {
         </div>
       )}
 
-      <UploadCard />
+      <section className="mt-12 border-t border-border pt-8">
+        <div className="mb-4">
+          <div className="eyebrow text-accent">CLOB V2 Order Burst</div>
+          <h2 className="mt-2 text-[24px] font-bold leading-tight tracking-tight">
+            Order burst runs
+          </h2>
+          <p className="mt-2 max-w-[72ch] text-sm text-text-muted">
+            Concurrent POST /order bursts against{" "}
+            <span className="font-mono text-text">clob-v2.polymarket.com</span>
+            . Each run probes duplicate handling and submission latency at
+            configured fanouts using a shared V2 timestamp per burst.
+          </p>
+          <p className="mt-2 font-mono text-xxs text-text-subtle">
+            root: {orderBurstRoot()}
+          </p>
+        </div>
+
+        {bursts.length === 0 ? (
+          <div className="card card-pad text-sm text-text-muted">
+            No order-burst runs found. Run{" "}
+            <span className="font-mono text-text">
+              make order-burst TOKEN_ID=…
+            </span>{" "}
+            from the repo root, then reload this page.
+          </div>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {bursts.map((run) => (
+              <OrderBurstCard key={run.timestamp} run={run} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <div className="mt-12">
+        <UploadCard />
+      </div>
     </main>
   );
 }

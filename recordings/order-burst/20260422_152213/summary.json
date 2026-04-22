@@ -1,0 +1,821 @@
+{
+  "balance_allowance_preflight": {
+    "collateral": {
+      "allowances": {
+        "0xE111180000d2663C0091e4f400237545B87B996B": "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+        "0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296": "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+        "0xe2222d279d744050d28e00520010520000310F59": "115792089237316195423570985008687907853269984665640564039457584007913129639935"
+      },
+      "balance": "1604393"
+    }
+  },
+  "chain_id": 137,
+  "cleanup": true,
+  "counts": [
+    1,
+    2,
+    5,
+    10
+  ],
+  "host": "https://clob-v2.polymarket.com",
+  "post_only": true,
+  "price": "0.01",
+  "resolved_chain_id": 137,
+  "results": [
+    {
+      "cleanup_result": {
+        "canceled": [
+          "0xe38a82c56299f04660b9b1679c7959d4d57ffa0378a33a95d8daf365872991e1"
+        ],
+        "not_canceled": {}
+      },
+      "fanout": 1,
+      "new_open_order_count": 1,
+      "new_open_order_ids": [
+        "0xe38a82c56299f04660b9b1679c7959d4d57ffa0378a33a95d8daf365872991e1"
+      ],
+      "new_open_orders": [
+        {
+          "asset_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216",
+          "associate_trades": [],
+          "created_at": 1776846139,
+          "expiration": "0",
+          "id": "0xe38a82c56299f04660b9b1679c7959d4d57ffa0378a33a95d8daf365872991e1",
+          "maker_address": "0xEB6450dFa11842B5b5ddd392e1C96e5CA187B38E",
+          "market": "0x182390641d3b1b47cc64274b9da290efd04221c586651ba190880713da6347d9",
+          "order_type": "GTC",
+          "original_size": "5",
+          "outcome": "Yes",
+          "owner": "daa8241e-f590-fb61-309a-76e0ee39a51f",
+          "price": "0.01",
+          "side": "BUY",
+          "size_matched": "0",
+          "status": "LIVE"
+        }
+      ],
+      "requests": [
+        {
+          "error": "",
+          "index": 1,
+          "kind": "success",
+          "latency_ms": 514.152,
+          "order_id": "0xe38a82c56299f04660b9b1679c7959d4d57ffa0378a33a95d8daf365872991e1",
+          "response": {
+            "errorMsg": "",
+            "makingAmount": "",
+            "orderID": "0xe38a82c56299f04660b9b1679c7959d4d57ffa0378a33a95d8daf365872991e1",
+            "status": "live",
+            "success": true,
+            "takingAmount": ""
+          },
+          "salt": "1334646233361",
+          "status": "live",
+          "success": true,
+          "timestamp_ms": 1776846137829
+        }
+      ],
+      "shared_timestamp_ms": 1776846137829,
+      "summary": {
+        "fastest_success_ms": 514.152,
+        "latency_ms": {
+          "max": 514.152,
+          "median": 514.152,
+          "min": 514.152
+        },
+        "request_counts": {
+          "success": 1
+        }
+      }
+    },
+    {
+      "cleanup_result": {
+        "canceled": [
+          "0x43dd776a8664e1ca3e8e68ec9004f6c70b89aede70c2a653c0611c43ede12b54",
+          "0x4d53e0058d746e27baecb6c74119b68febf65eac68b9b1ec186cc0100d668b89"
+        ],
+        "not_canceled": {}
+      },
+      "fanout": 2,
+      "new_open_order_count": 2,
+      "new_open_order_ids": [
+        "0x43dd776a8664e1ca3e8e68ec9004f6c70b89aede70c2a653c0611c43ede12b54",
+        "0x4d53e0058d746e27baecb6c74119b68febf65eac68b9b1ec186cc0100d668b89"
+      ],
+      "new_open_orders": [
+        {
+          "asset_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216",
+          "associate_trades": [],
+          "created_at": 1776846142,
+          "expiration": "0",
+          "id": "0x43dd776a8664e1ca3e8e68ec9004f6c70b89aede70c2a653c0611c43ede12b54",
+          "maker_address": "0xEB6450dFa11842B5b5ddd392e1C96e5CA187B38E",
+          "market": "0x182390641d3b1b47cc64274b9da290efd04221c586651ba190880713da6347d9",
+          "order_type": "GTC",
+          "original_size": "5",
+          "outcome": "Yes",
+          "owner": "daa8241e-f590-fb61-309a-76e0ee39a51f",
+          "price": "0.01",
+          "side": "BUY",
+          "size_matched": "0",
+          "status": "LIVE"
+        },
+        {
+          "asset_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216",
+          "associate_trades": [],
+          "created_at": 1776846142,
+          "expiration": "0",
+          "id": "0x4d53e0058d746e27baecb6c74119b68febf65eac68b9b1ec186cc0100d668b89",
+          "maker_address": "0xEB6450dFa11842B5b5ddd392e1C96e5CA187B38E",
+          "market": "0x182390641d3b1b47cc64274b9da290efd04221c586651ba190880713da6347d9",
+          "order_type": "GTC",
+          "original_size": "5",
+          "outcome": "Yes",
+          "owner": "daa8241e-f590-fb61-309a-76e0ee39a51f",
+          "price": "0.01",
+          "side": "BUY",
+          "size_matched": "0",
+          "status": "LIVE"
+        }
+      ],
+      "requests": [
+        {
+          "error": "",
+          "index": 1,
+          "kind": "success",
+          "latency_ms": 741.694,
+          "order_id": "0x43dd776a8664e1ca3e8e68ec9004f6c70b89aede70c2a653c0611c43ede12b54",
+          "response": {
+            "errorMsg": "",
+            "makingAmount": "",
+            "orderID": "0x43dd776a8664e1ca3e8e68ec9004f6c70b89aede70c2a653c0611c43ede12b54",
+            "status": "live",
+            "success": true,
+            "takingAmount": ""
+          },
+          "salt": "625348991408",
+          "status": "live",
+          "success": true,
+          "timestamp_ms": 1776846141496
+        },
+        {
+          "error": "",
+          "index": 2,
+          "kind": "success",
+          "latency_ms": 517.117,
+          "order_id": "0x4d53e0058d746e27baecb6c74119b68febf65eac68b9b1ec186cc0100d668b89",
+          "response": {
+            "errorMsg": "",
+            "makingAmount": "",
+            "orderID": "0x4d53e0058d746e27baecb6c74119b68febf65eac68b9b1ec186cc0100d668b89",
+            "status": "live",
+            "success": true,
+            "takingAmount": ""
+          },
+          "salt": "161553070915",
+          "status": "live",
+          "success": true,
+          "timestamp_ms": 1776846141496
+        }
+      ],
+      "shared_timestamp_ms": 1776846141496,
+      "summary": {
+        "fastest_success_ms": 517.117,
+        "latency_ms": {
+          "max": 741.694,
+          "median": 629.405,
+          "min": 517.117
+        },
+        "request_counts": {
+          "success": 2
+        }
+      }
+    },
+    {
+      "cleanup_result": {
+        "canceled": [
+          "0x10f35087983a409e547050c8864dfaa2ecdddc2782682823649198e9a2d2699a",
+          "0x5bad107e9eba1c3be6ea7ed986bf22532ed1a76ff89cd39244fee869c6b183c3",
+          "0x73d024fec9bea69f14ee92d581647ca61be96758b4178171de9e78406f736ca1",
+          "0xa431d999691a4cf756bc26cc9785a2973f87c0b2dcfde772914bb5eb85047052",
+          "0xec8ae58cac93ed090af1f31f5ae9d252b577456f603b8f696cce94aaa8afc3d7"
+        ],
+        "not_canceled": {}
+      },
+      "fanout": 5,
+      "new_open_order_count": 5,
+      "new_open_order_ids": [
+        "0x10f35087983a409e547050c8864dfaa2ecdddc2782682823649198e9a2d2699a",
+        "0x5bad107e9eba1c3be6ea7ed986bf22532ed1a76ff89cd39244fee869c6b183c3",
+        "0x73d024fec9bea69f14ee92d581647ca61be96758b4178171de9e78406f736ca1",
+        "0xa431d999691a4cf756bc26cc9785a2973f87c0b2dcfde772914bb5eb85047052",
+        "0xec8ae58cac93ed090af1f31f5ae9d252b577456f603b8f696cce94aaa8afc3d7"
+      ],
+      "new_open_orders": [
+        {
+          "asset_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216",
+          "associate_trades": [],
+          "created_at": 1776846145,
+          "expiration": "0",
+          "id": "0x10f35087983a409e547050c8864dfaa2ecdddc2782682823649198e9a2d2699a",
+          "maker_address": "0xEB6450dFa11842B5b5ddd392e1C96e5CA187B38E",
+          "market": "0x182390641d3b1b47cc64274b9da290efd04221c586651ba190880713da6347d9",
+          "order_type": "GTC",
+          "original_size": "5",
+          "outcome": "Yes",
+          "owner": "daa8241e-f590-fb61-309a-76e0ee39a51f",
+          "price": "0.01",
+          "side": "BUY",
+          "size_matched": "0",
+          "status": "LIVE"
+        },
+        {
+          "asset_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216",
+          "associate_trades": [],
+          "created_at": 1776846145,
+          "expiration": "0",
+          "id": "0x5bad107e9eba1c3be6ea7ed986bf22532ed1a76ff89cd39244fee869c6b183c3",
+          "maker_address": "0xEB6450dFa11842B5b5ddd392e1C96e5CA187B38E",
+          "market": "0x182390641d3b1b47cc64274b9da290efd04221c586651ba190880713da6347d9",
+          "order_type": "GTC",
+          "original_size": "5",
+          "outcome": "Yes",
+          "owner": "daa8241e-f590-fb61-309a-76e0ee39a51f",
+          "price": "0.01",
+          "side": "BUY",
+          "size_matched": "0",
+          "status": "LIVE"
+        },
+        {
+          "asset_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216",
+          "associate_trades": [],
+          "created_at": 1776846145,
+          "expiration": "0",
+          "id": "0x73d024fec9bea69f14ee92d581647ca61be96758b4178171de9e78406f736ca1",
+          "maker_address": "0xEB6450dFa11842B5b5ddd392e1C96e5CA187B38E",
+          "market": "0x182390641d3b1b47cc64274b9da290efd04221c586651ba190880713da6347d9",
+          "order_type": "GTC",
+          "original_size": "5",
+          "outcome": "Yes",
+          "owner": "daa8241e-f590-fb61-309a-76e0ee39a51f",
+          "price": "0.01",
+          "side": "BUY",
+          "size_matched": "0",
+          "status": "LIVE"
+        },
+        {
+          "asset_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216",
+          "associate_trades": [],
+          "created_at": 1776846145,
+          "expiration": "0",
+          "id": "0xa431d999691a4cf756bc26cc9785a2973f87c0b2dcfde772914bb5eb85047052",
+          "maker_address": "0xEB6450dFa11842B5b5ddd392e1C96e5CA187B38E",
+          "market": "0x182390641d3b1b47cc64274b9da290efd04221c586651ba190880713da6347d9",
+          "order_type": "GTC",
+          "original_size": "5",
+          "outcome": "Yes",
+          "owner": "daa8241e-f590-fb61-309a-76e0ee39a51f",
+          "price": "0.01",
+          "side": "BUY",
+          "size_matched": "0",
+          "status": "LIVE"
+        },
+        {
+          "asset_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216",
+          "associate_trades": [],
+          "created_at": 1776846145,
+          "expiration": "0",
+          "id": "0xec8ae58cac93ed090af1f31f5ae9d252b577456f603b8f696cce94aaa8afc3d7",
+          "maker_address": "0xEB6450dFa11842B5b5ddd392e1C96e5CA187B38E",
+          "market": "0x182390641d3b1b47cc64274b9da290efd04221c586651ba190880713da6347d9",
+          "order_type": "GTC",
+          "original_size": "5",
+          "outcome": "Yes",
+          "owner": "daa8241e-f590-fb61-309a-76e0ee39a51f",
+          "price": "0.01",
+          "side": "BUY",
+          "size_matched": "0",
+          "status": "LIVE"
+        }
+      ],
+      "requests": [
+        {
+          "error": "",
+          "index": 1,
+          "kind": "success",
+          "latency_ms": 721.29,
+          "order_id": "0x73d024fec9bea69f14ee92d581647ca61be96758b4178171de9e78406f736ca1",
+          "response": {
+            "errorMsg": "",
+            "makingAmount": "",
+            "orderID": "0x73d024fec9bea69f14ee92d581647ca61be96758b4178171de9e78406f736ca1",
+            "status": "live",
+            "success": true,
+            "takingAmount": ""
+          },
+          "salt": "1222755626179",
+          "status": "live",
+          "success": true,
+          "timestamp_ms": 1776846144643
+        },
+        {
+          "error": "",
+          "index": 2,
+          "kind": "success",
+          "latency_ms": 620.426,
+          "order_id": "0x10f35087983a409e547050c8864dfaa2ecdddc2782682823649198e9a2d2699a",
+          "response": {
+            "errorMsg": "",
+            "makingAmount": "",
+            "orderID": "0x10f35087983a409e547050c8864dfaa2ecdddc2782682823649198e9a2d2699a",
+            "status": "live",
+            "success": true,
+            "takingAmount": ""
+          },
+          "salt": "1269878023809",
+          "status": "live",
+          "success": true,
+          "timestamp_ms": 1776846144643
+        },
+        {
+          "error": "",
+          "index": 3,
+          "kind": "success",
+          "latency_ms": 504.97,
+          "order_id": "0xec8ae58cac93ed090af1f31f5ae9d252b577456f603b8f696cce94aaa8afc3d7",
+          "response": {
+            "errorMsg": "",
+            "makingAmount": "",
+            "orderID": "0xec8ae58cac93ed090af1f31f5ae9d252b577456f603b8f696cce94aaa8afc3d7",
+            "status": "live",
+            "success": true,
+            "takingAmount": ""
+          },
+          "salt": "161262752685",
+          "status": "live",
+          "success": true,
+          "timestamp_ms": 1776846144643
+        },
+        {
+          "error": "",
+          "index": 4,
+          "kind": "success",
+          "latency_ms": 719.315,
+          "order_id": "0xa431d999691a4cf756bc26cc9785a2973f87c0b2dcfde772914bb5eb85047052",
+          "response": {
+            "errorMsg": "",
+            "makingAmount": "",
+            "orderID": "0xa431d999691a4cf756bc26cc9785a2973f87c0b2dcfde772914bb5eb85047052",
+            "status": "live",
+            "success": true,
+            "takingAmount": ""
+          },
+          "salt": "1505330860929",
+          "status": "live",
+          "success": true,
+          "timestamp_ms": 1776846144643
+        },
+        {
+          "error": "",
+          "index": 5,
+          "kind": "success",
+          "latency_ms": 622.216,
+          "order_id": "0x5bad107e9eba1c3be6ea7ed986bf22532ed1a76ff89cd39244fee869c6b183c3",
+          "response": {
+            "errorMsg": "",
+            "makingAmount": "",
+            "orderID": "0x5bad107e9eba1c3be6ea7ed986bf22532ed1a76ff89cd39244fee869c6b183c3",
+            "status": "live",
+            "success": true,
+            "takingAmount": ""
+          },
+          "salt": "701867528138",
+          "status": "live",
+          "success": true,
+          "timestamp_ms": 1776846144643
+        }
+      ],
+      "shared_timestamp_ms": 1776846144643,
+      "summary": {
+        "fastest_success_ms": 504.97,
+        "latency_ms": {
+          "max": 721.29,
+          "median": 622.216,
+          "min": 504.97
+        },
+        "request_counts": {
+          "success": 5
+        }
+      }
+    },
+    {
+      "cleanup_result": {
+        "canceled": [
+          "0x03f18353b10c3f6c2f5c6269579bb7d789a6b0649fa174435c7e644ab8e47f50",
+          "0x0f8eb70940505aeafc440b37833a1ff7a8bd5d3fc1c59ba5ba4eb146f763723e",
+          "0x21e1e3ee0dd1d91e10ff5966eda1f342b689669085c8aa27e9bf7ddd35e5c571",
+          "0x6e0ec951f42c2cc9dda8356eb35ad4f840f60b7a6edf4320af883718991dfa88",
+          "0x904ab4a9eef20fdcf274eeea011a149a7861c22adb6d6271809497dd273483aa",
+          "0x930214566da53fde68ff2da05eff93e1ccecf3ddfccf11fb7f1582965f928bb2",
+          "0xb2e6837c42c3246b99e078b7211ccc71b3686192390566a7680d7a0a2d5d1183",
+          "0xd281e521e7cacd8123bc0022fb3ad3cee89322189a5c3630ba6ab3d3a3c1d07a",
+          "0xe8861a2b678a5c567db60fc41c4f09553bf07262133b06a5196a5dfb87edbb3f",
+          "0xf2d45668a0d52856b8de51635f84a537ea55f62f18463fcd99d0af090d1358d7"
+        ],
+        "not_canceled": {}
+      },
+      "fanout": 10,
+      "new_open_order_count": 10,
+      "new_open_order_ids": [
+        "0x03f18353b10c3f6c2f5c6269579bb7d789a6b0649fa174435c7e644ab8e47f50",
+        "0x0f8eb70940505aeafc440b37833a1ff7a8bd5d3fc1c59ba5ba4eb146f763723e",
+        "0x21e1e3ee0dd1d91e10ff5966eda1f342b689669085c8aa27e9bf7ddd35e5c571",
+        "0x6e0ec951f42c2cc9dda8356eb35ad4f840f60b7a6edf4320af883718991dfa88",
+        "0x904ab4a9eef20fdcf274eeea011a149a7861c22adb6d6271809497dd273483aa",
+        "0x930214566da53fde68ff2da05eff93e1ccecf3ddfccf11fb7f1582965f928bb2",
+        "0xb2e6837c42c3246b99e078b7211ccc71b3686192390566a7680d7a0a2d5d1183",
+        "0xd281e521e7cacd8123bc0022fb3ad3cee89322189a5c3630ba6ab3d3a3c1d07a",
+        "0xe8861a2b678a5c567db60fc41c4f09553bf07262133b06a5196a5dfb87edbb3f",
+        "0xf2d45668a0d52856b8de51635f84a537ea55f62f18463fcd99d0af090d1358d7"
+      ],
+      "new_open_orders": [
+        {
+          "asset_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216",
+          "associate_trades": [],
+          "created_at": 1776846148,
+          "expiration": "0",
+          "id": "0x03f18353b10c3f6c2f5c6269579bb7d789a6b0649fa174435c7e644ab8e47f50",
+          "maker_address": "0xEB6450dFa11842B5b5ddd392e1C96e5CA187B38E",
+          "market": "0x182390641d3b1b47cc64274b9da290efd04221c586651ba190880713da6347d9",
+          "order_type": "GTC",
+          "original_size": "5",
+          "outcome": "Yes",
+          "owner": "daa8241e-f590-fb61-309a-76e0ee39a51f",
+          "price": "0.01",
+          "side": "BUY",
+          "size_matched": "0",
+          "status": "LIVE"
+        },
+        {
+          "asset_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216",
+          "associate_trades": [],
+          "created_at": 1776846148,
+          "expiration": "0",
+          "id": "0x0f8eb70940505aeafc440b37833a1ff7a8bd5d3fc1c59ba5ba4eb146f763723e",
+          "maker_address": "0xEB6450dFa11842B5b5ddd392e1C96e5CA187B38E",
+          "market": "0x182390641d3b1b47cc64274b9da290efd04221c586651ba190880713da6347d9",
+          "order_type": "GTC",
+          "original_size": "5",
+          "outcome": "Yes",
+          "owner": "daa8241e-f590-fb61-309a-76e0ee39a51f",
+          "price": "0.01",
+          "side": "BUY",
+          "size_matched": "0",
+          "status": "LIVE"
+        },
+        {
+          "asset_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216",
+          "associate_trades": [],
+          "created_at": 1776846148,
+          "expiration": "0",
+          "id": "0x21e1e3ee0dd1d91e10ff5966eda1f342b689669085c8aa27e9bf7ddd35e5c571",
+          "maker_address": "0xEB6450dFa11842B5b5ddd392e1C96e5CA187B38E",
+          "market": "0x182390641d3b1b47cc64274b9da290efd04221c586651ba190880713da6347d9",
+          "order_type": "GTC",
+          "original_size": "5",
+          "outcome": "Yes",
+          "owner": "daa8241e-f590-fb61-309a-76e0ee39a51f",
+          "price": "0.01",
+          "side": "BUY",
+          "size_matched": "0",
+          "status": "LIVE"
+        },
+        {
+          "asset_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216",
+          "associate_trades": [],
+          "created_at": 1776846148,
+          "expiration": "0",
+          "id": "0x6e0ec951f42c2cc9dda8356eb35ad4f840f60b7a6edf4320af883718991dfa88",
+          "maker_address": "0xEB6450dFa11842B5b5ddd392e1C96e5CA187B38E",
+          "market": "0x182390641d3b1b47cc64274b9da290efd04221c586651ba190880713da6347d9",
+          "order_type": "GTC",
+          "original_size": "5",
+          "outcome": "Yes",
+          "owner": "daa8241e-f590-fb61-309a-76e0ee39a51f",
+          "price": "0.01",
+          "side": "BUY",
+          "size_matched": "0",
+          "status": "LIVE"
+        },
+        {
+          "asset_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216",
+          "associate_trades": [],
+          "created_at": 1776846148,
+          "expiration": "0",
+          "id": "0x904ab4a9eef20fdcf274eeea011a149a7861c22adb6d6271809497dd273483aa",
+          "maker_address": "0xEB6450dFa11842B5b5ddd392e1C96e5CA187B38E",
+          "market": "0x182390641d3b1b47cc64274b9da290efd04221c586651ba190880713da6347d9",
+          "order_type": "GTC",
+          "original_size": "5",
+          "outcome": "Yes",
+          "owner": "daa8241e-f590-fb61-309a-76e0ee39a51f",
+          "price": "0.01",
+          "side": "BUY",
+          "size_matched": "0",
+          "status": "LIVE"
+        },
+        {
+          "asset_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216",
+          "associate_trades": [],
+          "created_at": 1776846148,
+          "expiration": "0",
+          "id": "0x930214566da53fde68ff2da05eff93e1ccecf3ddfccf11fb7f1582965f928bb2",
+          "maker_address": "0xEB6450dFa11842B5b5ddd392e1C96e5CA187B38E",
+          "market": "0x182390641d3b1b47cc64274b9da290efd04221c586651ba190880713da6347d9",
+          "order_type": "GTC",
+          "original_size": "5",
+          "outcome": "Yes",
+          "owner": "daa8241e-f590-fb61-309a-76e0ee39a51f",
+          "price": "0.01",
+          "side": "BUY",
+          "size_matched": "0",
+          "status": "LIVE"
+        },
+        {
+          "asset_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216",
+          "associate_trades": [],
+          "created_at": 1776846148,
+          "expiration": "0",
+          "id": "0xb2e6837c42c3246b99e078b7211ccc71b3686192390566a7680d7a0a2d5d1183",
+          "maker_address": "0xEB6450dFa11842B5b5ddd392e1C96e5CA187B38E",
+          "market": "0x182390641d3b1b47cc64274b9da290efd04221c586651ba190880713da6347d9",
+          "order_type": "GTC",
+          "original_size": "5",
+          "outcome": "Yes",
+          "owner": "daa8241e-f590-fb61-309a-76e0ee39a51f",
+          "price": "0.01",
+          "side": "BUY",
+          "size_matched": "0",
+          "status": "LIVE"
+        },
+        {
+          "asset_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216",
+          "associate_trades": [],
+          "created_at": 1776846148,
+          "expiration": "0",
+          "id": "0xd281e521e7cacd8123bc0022fb3ad3cee89322189a5c3630ba6ab3d3a3c1d07a",
+          "maker_address": "0xEB6450dFa11842B5b5ddd392e1C96e5CA187B38E",
+          "market": "0x182390641d3b1b47cc64274b9da290efd04221c586651ba190880713da6347d9",
+          "order_type": "GTC",
+          "original_size": "5",
+          "outcome": "Yes",
+          "owner": "daa8241e-f590-fb61-309a-76e0ee39a51f",
+          "price": "0.01",
+          "side": "BUY",
+          "size_matched": "0",
+          "status": "LIVE"
+        },
+        {
+          "asset_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216",
+          "associate_trades": [],
+          "created_at": 1776846148,
+          "expiration": "0",
+          "id": "0xe8861a2b678a5c567db60fc41c4f09553bf07262133b06a5196a5dfb87edbb3f",
+          "maker_address": "0xEB6450dFa11842B5b5ddd392e1C96e5CA187B38E",
+          "market": "0x182390641d3b1b47cc64274b9da290efd04221c586651ba190880713da6347d9",
+          "order_type": "GTC",
+          "original_size": "5",
+          "outcome": "Yes",
+          "owner": "daa8241e-f590-fb61-309a-76e0ee39a51f",
+          "price": "0.01",
+          "side": "BUY",
+          "size_matched": "0",
+          "status": "LIVE"
+        },
+        {
+          "asset_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216",
+          "associate_trades": [],
+          "created_at": 1776846148,
+          "expiration": "0",
+          "id": "0xf2d45668a0d52856b8de51635f84a537ea55f62f18463fcd99d0af090d1358d7",
+          "maker_address": "0xEB6450dFa11842B5b5ddd392e1C96e5CA187B38E",
+          "market": "0x182390641d3b1b47cc64274b9da290efd04221c586651ba190880713da6347d9",
+          "order_type": "GTC",
+          "original_size": "5",
+          "outcome": "Yes",
+          "owner": "daa8241e-f590-fb61-309a-76e0ee39a51f",
+          "price": "0.01",
+          "side": "BUY",
+          "size_matched": "0",
+          "status": "LIVE"
+        }
+      ],
+      "requests": [
+        {
+          "error": "",
+          "index": 1,
+          "kind": "success",
+          "latency_ms": 477.967,
+          "order_id": "0x904ab4a9eef20fdcf274eeea011a149a7861c22adb6d6271809497dd273483aa",
+          "response": {
+            "errorMsg": "",
+            "makingAmount": "",
+            "orderID": "0x904ab4a9eef20fdcf274eeea011a149a7861c22adb6d6271809497dd273483aa",
+            "status": "live",
+            "success": true,
+            "takingAmount": ""
+          },
+          "salt": "560292952678",
+          "status": "live",
+          "success": true,
+          "timestamp_ms": 1776846147791
+        },
+        {
+          "error": "",
+          "index": 2,
+          "kind": "success",
+          "latency_ms": 477.471,
+          "order_id": "0x930214566da53fde68ff2da05eff93e1ccecf3ddfccf11fb7f1582965f928bb2",
+          "response": {
+            "errorMsg": "",
+            "makingAmount": "",
+            "orderID": "0x930214566da53fde68ff2da05eff93e1ccecf3ddfccf11fb7f1582965f928bb2",
+            "status": "live",
+            "success": true,
+            "takingAmount": ""
+          },
+          "salt": "253688431263",
+          "status": "live",
+          "success": true,
+          "timestamp_ms": 1776846147791
+        },
+        {
+          "error": "",
+          "index": 3,
+          "kind": "success",
+          "latency_ms": 479.296,
+          "order_id": "0xb2e6837c42c3246b99e078b7211ccc71b3686192390566a7680d7a0a2d5d1183",
+          "response": {
+            "errorMsg": "",
+            "makingAmount": "",
+            "orderID": "0xb2e6837c42c3246b99e078b7211ccc71b3686192390566a7680d7a0a2d5d1183",
+            "status": "live",
+            "success": true,
+            "takingAmount": ""
+          },
+          "salt": "1667182031212",
+          "status": "live",
+          "success": true,
+          "timestamp_ms": 1776846147791
+        },
+        {
+          "error": "",
+          "index": 4,
+          "kind": "success",
+          "latency_ms": 693.849,
+          "order_id": "0x0f8eb70940505aeafc440b37833a1ff7a8bd5d3fc1c59ba5ba4eb146f763723e",
+          "response": {
+            "errorMsg": "",
+            "makingAmount": "",
+            "orderID": "0x0f8eb70940505aeafc440b37833a1ff7a8bd5d3fc1c59ba5ba4eb146f763723e",
+            "status": "live",
+            "success": true,
+            "takingAmount": ""
+          },
+          "salt": "1052200072531",
+          "status": "live",
+          "success": true,
+          "timestamp_ms": 1776846147791
+        },
+        {
+          "error": "",
+          "index": 5,
+          "kind": "success",
+          "latency_ms": 478.426,
+          "order_id": "0xf2d45668a0d52856b8de51635f84a537ea55f62f18463fcd99d0af090d1358d7",
+          "response": {
+            "errorMsg": "",
+            "makingAmount": "",
+            "orderID": "0xf2d45668a0d52856b8de51635f84a537ea55f62f18463fcd99d0af090d1358d7",
+            "status": "live",
+            "success": true,
+            "takingAmount": ""
+          },
+          "salt": "557098302895",
+          "status": "live",
+          "success": true,
+          "timestamp_ms": 1776846147791
+        },
+        {
+          "error": "",
+          "index": 6,
+          "kind": "success",
+          "latency_ms": 478.281,
+          "order_id": "0xe8861a2b678a5c567db60fc41c4f09553bf07262133b06a5196a5dfb87edbb3f",
+          "response": {
+            "errorMsg": "",
+            "makingAmount": "",
+            "orderID": "0xe8861a2b678a5c567db60fc41c4f09553bf07262133b06a5196a5dfb87edbb3f",
+            "status": "live",
+            "success": true,
+            "takingAmount": ""
+          },
+          "salt": "1067847716939",
+          "status": "live",
+          "success": true,
+          "timestamp_ms": 1776846147791
+        },
+        {
+          "error": "",
+          "index": 7,
+          "kind": "success",
+          "latency_ms": 694.204,
+          "order_id": "0x6e0ec951f42c2cc9dda8356eb35ad4f840f60b7a6edf4320af883718991dfa88",
+          "response": {
+            "errorMsg": "",
+            "makingAmount": "",
+            "orderID": "0x6e0ec951f42c2cc9dda8356eb35ad4f840f60b7a6edf4320af883718991dfa88",
+            "status": "live",
+            "success": true,
+            "takingAmount": ""
+          },
+          "salt": "1271153528282",
+          "status": "live",
+          "success": true,
+          "timestamp_ms": 1776846147791
+        },
+        {
+          "error": "",
+          "index": 8,
+          "kind": "success",
+          "latency_ms": 476.855,
+          "order_id": "0x03f18353b10c3f6c2f5c6269579bb7d789a6b0649fa174435c7e644ab8e47f50",
+          "response": {
+            "errorMsg": "",
+            "makingAmount": "",
+            "orderID": "0x03f18353b10c3f6c2f5c6269579bb7d789a6b0649fa174435c7e644ab8e47f50",
+            "status": "live",
+            "success": true,
+            "takingAmount": ""
+          },
+          "salt": "1457404324476",
+          "status": "live",
+          "success": true,
+          "timestamp_ms": 1776846147791
+        },
+        {
+          "error": "",
+          "index": 9,
+          "kind": "success",
+          "latency_ms": 475.941,
+          "order_id": "0xd281e521e7cacd8123bc0022fb3ad3cee89322189a5c3630ba6ab3d3a3c1d07a",
+          "response": {
+            "errorMsg": "",
+            "makingAmount": "",
+            "orderID": "0xd281e521e7cacd8123bc0022fb3ad3cee89322189a5c3630ba6ab3d3a3c1d07a",
+            "status": "live",
+            "success": true,
+            "takingAmount": ""
+          },
+          "salt": "1642796166536",
+          "status": "live",
+          "success": true,
+          "timestamp_ms": 1776846147791
+        },
+        {
+          "error": "",
+          "index": 10,
+          "kind": "success",
+          "latency_ms": 476.764,
+          "order_id": "0x21e1e3ee0dd1d91e10ff5966eda1f342b689669085c8aa27e9bf7ddd35e5c571",
+          "response": {
+            "errorMsg": "",
+            "makingAmount": "",
+            "orderID": "0x21e1e3ee0dd1d91e10ff5966eda1f342b689669085c8aa27e9bf7ddd35e5c571",
+            "status": "live",
+            "success": true,
+            "takingAmount": ""
+          },
+          "salt": "1202129591215",
+          "status": "live",
+          "success": true,
+          "timestamp_ms": 1776846147791
+        }
+      ],
+      "shared_timestamp_ms": 1776846147791,
+      "summary": {
+        "fastest_success_ms": 475.941,
+        "latency_ms": {
+          "max": 694.204,
+          "median": 478.124,
+          "min": 475.941
+        },
+        "request_counts": {
+          "success": 10
+        }
+      }
+    }
+  ],
+  "side": "BUY",
+  "size": "5",
+  "token_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216"
+}

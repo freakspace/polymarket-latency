@@ -240,6 +240,85 @@ def maybe_builder_config() -> BuilderConfig | None:
     return BuilderConfig(builder_code=builder_code)
 
 
+def verify_builder_code(host: str, builder_code: str) -> None:
+    import urllib.request
+
+    url = f"{host.rstrip('/')}/fees/builder-fees/{builder_code}"
+    req = urllib.request.Request(url, headers={"User-Agent": "polymarket_order_burst"})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            body = resp.read(400)
+        print(f"[builder] code {builder_code} recognized, fee rate payload: {body!r}")
+    except Exception as exc:
+        raise RuntimeError(
+            f"builder_code {builder_code!r} was not recognized by {url} ({exc}). "
+            "Use the bytes32 code Polymarket issued your builder, not the builder API-key UUID."
+        )
+
+
+def fetch_funder_kind(host: str, chain_id: int, funder: str) -> str:
+    """Return 'eoa' | 'gnosis_safe' | 'poly_proxy' | 'unknown' by inspecting on-chain bytecode.
+
+    We only try to classify on Polygon mainnet (chain 137); on other chains we return 'unknown'.
+    """
+    import json
+    import urllib.request
+
+    if chain_id != 137 or not funder:
+        return "unknown"
+
+    rpc_urls = [
+        "https://polygon-bor-rpc.publicnode.com",
+        "https://rpc.ankr.com/polygon",
+    ]
+    for rpc in rpc_urls:
+        try:
+            body = json.dumps({
+                "jsonrpc": "2.0", "id": 1, "method": "eth_getCode",
+                "params": [funder, "latest"],
+            }).encode()
+            req = urllib.request.Request(
+                rpc,
+                data=body,
+                headers={"Content-Type": "application/json", "User-Agent": "curl/8.1"},
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                code = json.loads(resp.read()).get("result", "0x")
+            if not code or code == "0x":
+                return "eoa"
+            code_lower = code.lower()
+            # EIP-1167 minimal proxy: starts with 363d3d373d3d3d363d73 and ends with 5af43d82803e903d91602b57fd5bf3
+            if code_lower.startswith("0x363d3d373d3d3d363d73"):
+                return "poly_proxy"
+            # Gnosis Safe proxies are ~53 bytes and forward to a master copy stored in slot 0.
+            return "gnosis_safe" if len(code_lower) > 2 else "unknown"
+        except Exception:
+            continue
+    return "unknown"
+
+
+def preflight_signature_type(
+    host: str,
+    chain_id: int,
+    funder: str | None,
+    signature_type: int,
+) -> None:
+    if not funder:
+        return
+    kind = fetch_funder_kind(host, chain_id, funder)
+    expected = {"eoa": 0, "poly_proxy": 1, "gnosis_safe": 2}.get(kind)
+    label = {0: "EOA", 1: "POLY_PROXY", 2: "POLY_GNOSIS_SAFE", 3: "POLY_1271"}.get(
+        signature_type, str(signature_type)
+    )
+    print(f"[preflight] funder={funder} on-chain kind={kind} configured signature_type={label}")
+    if expected is not None and expected != signature_type:
+        expected_label = {0: "EOA", 1: "POLY_PROXY", 2: "POLY_GNOSIS_SAFE"}[expected]
+        raise RuntimeError(
+            f"SIGNATURE_TYPE mismatch: funder {funder} looks like {kind} on-chain, "
+            f"but SIGNATURE_TYPE is {label}. Set POLYMARKET_SIGNATURE_TYPE={expected_label}."
+        )
+
+
 def new_client(
     host: str,
     chain_id: int,
@@ -283,7 +362,13 @@ def derive_creds(
         address = bootstrap_client.get_address()
         print(f"[auth] trying address={address} chain_id={chain_id} use_server_time=true")
         try:
-            resolved_creds = bootstrap_client.create_or_derive_api_key()
+            try:
+                resolved_creds = bootstrap_client.create_api_key()
+                print("[auth] create_api_key succeeded")
+            except Exception as exc_create:
+                print(f"[auth] create_api_key failed ({exc_create}); falling back to derive_api_key")
+                resolved_creds = bootstrap_client.derive_api_key()
+                print("[auth] derive_api_key succeeded (deterministic creds for this EOA)")
             resolved_chain_id = chain_id
             break
         except Exception as exc:
@@ -325,6 +410,10 @@ def build_client(args: argparse.Namespace) -> ClobClient:
         "POLYMARKET_FUNDER",
         "POLYMARKET_USER_FUNDER_ADDRESS",
     )
+    preflight_signature_type(args.host, args.chain_id, funder, signature_type)
+    builder_code = env_builder_code()
+    if builder_code:
+        verify_builder_code(args.host, builder_code)
     creds = maybe_load_creds_from_env()
     resolved_chain_id = args.chain_id
 
@@ -754,6 +843,20 @@ def print_burst_summary(result: dict[str, Any]) -> None:
 
     if result["cleanup_result"] is not None:
         print(f"cleanup result: {json.dumps(result['cleanup_result'], sort_keys=True)}")
+
+    all_invalid_sig = result["requests"] and all(
+        "invalid signature" in (r.get("error") or "") for r in result["requests"]
+    )
+    if all_invalid_sig:
+        print(
+            "\n[hint] every order rejected as 'invalid signature'. Polymarket accepted the L2 "
+            "auth headers, so the PK is crypto-valid — but the server has no signer→maker "
+            "binding for this EOA. Two common causes:\n"
+            "  - Managed-builder user: orders must be signed by the BUILDER PK with "
+            "POLYMARKET_BUILDER_CODE set (bytes32, not the builder API-key UUID).\n"
+            "  - Self-custodial user: the PK must be the actual signer EOA of POLYMARKET_FUNDER. "
+            "Re-export it from Polymarket's UI (Settings → Export Private Key)."
+        )
 
 
 def maybe_write_json(path: Path | None, payload: dict[str, Any]) -> None:
