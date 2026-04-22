@@ -1,0 +1,59 @@
+{
+  "balance_allowance_preflight": {
+    "collateral": {
+      "allowances": {
+        "0xE111180000d2663C0091e4f400237545B87B996B": "0",
+        "0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296": "0",
+        "0xe2222d279d744050d28e00520010520000310F59": "0"
+      },
+      "balance": "0"
+    }
+  },
+  "chain_id": 137,
+  "cleanup": false,
+  "counts": [
+    1
+  ],
+  "host": "https://clob-v2.polymarket.com",
+  "post_only": true,
+  "price": "0.01",
+  "resolved_chain_id": 137,
+  "results": [
+    {
+      "cleanup_result": null,
+      "fanout": 1,
+      "new_open_order_count": 0,
+      "new_open_order_ids": [],
+      "new_open_orders": [],
+      "requests": [
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]",
+          "index": 1,
+          "kind": "error",
+          "latency_ms": 437.943,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]"
+          },
+          "salt": "1661555502932",
+          "success": false,
+          "timestamp_ms": 1776842109002
+        }
+      ],
+      "shared_timestamp_ms": 1776842109002,
+      "summary": {
+        "fastest_success_ms": null,
+        "latency_ms": {
+          "max": 437.943,
+          "median": 437.943,
+          "min": 437.943
+        },
+        "request_counts": {
+          "error": 1
+        }
+      }
+    }
+  ],
+  "side": "BUY",
+  "size": "5",
+  "token_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216"
+}

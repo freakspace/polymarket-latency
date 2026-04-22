@@ -1,0 +1,329 @@
+{
+  "balance_allowance_preflight": {
+    "collateral": {
+      "allowances": {
+        "0xE111180000d2663C0091e4f400237545B87B996B": "0",
+        "0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296": "0",
+        "0xe2222d279d744050d28e00520010520000310F59": "0"
+      },
+      "balance": "0"
+    }
+  },
+  "chain_id": 137,
+  "cleanup": true,
+  "counts": [
+    1,
+    2,
+    5,
+    10
+  ],
+  "host": "https://clob-v2.polymarket.com",
+  "post_only": true,
+  "price": "0.01",
+  "resolved_chain_id": 137,
+  "results": [
+    {
+      "cleanup_result": null,
+      "fanout": 1,
+      "new_open_order_count": 0,
+      "new_open_order_ids": [],
+      "new_open_orders": [],
+      "requests": [
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]",
+          "index": 1,
+          "kind": "error",
+          "latency_ms": 457.657,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]"
+          },
+          "salt": "1761598092001",
+          "success": false,
+          "timestamp_ms": 1776841656332
+        }
+      ],
+      "shared_timestamp_ms": 1776841656332,
+      "summary": {
+        "fastest_success_ms": null,
+        "latency_ms": {
+          "max": 457.657,
+          "median": 457.657,
+          "min": 457.657
+        },
+        "request_counts": {
+          "error": 1
+        }
+      }
+    },
+    {
+      "cleanup_result": null,
+      "fanout": 2,
+      "new_open_order_count": 0,
+      "new_open_order_ids": [],
+      "new_open_orders": [],
+      "requests": [
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]",
+          "index": 1,
+          "kind": "error",
+          "latency_ms": 696.042,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]"
+          },
+          "salt": "511086328863",
+          "success": false,
+          "timestamp_ms": 1776841659250
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]",
+          "index": 2,
+          "kind": "error",
+          "latency_ms": 695.968,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]"
+          },
+          "salt": "1401322171004",
+          "success": false,
+          "timestamp_ms": 1776841659250
+        }
+      ],
+      "shared_timestamp_ms": 1776841659250,
+      "summary": {
+        "fastest_success_ms": null,
+        "latency_ms": {
+          "max": 696.042,
+          "median": 696.005,
+          "min": 695.968
+        },
+        "request_counts": {
+          "error": 2
+        }
+      }
+    },
+    {
+      "cleanup_result": null,
+      "fanout": 5,
+      "new_open_order_count": 0,
+      "new_open_order_ids": [],
+      "new_open_orders": [],
+      "requests": [
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]",
+          "index": 1,
+          "kind": "error",
+          "latency_ms": 585.721,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]"
+          },
+          "salt": "1079024133391",
+          "success": false,
+          "timestamp_ms": 1776841662062
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]",
+          "index": 2,
+          "kind": "error",
+          "latency_ms": 617.261,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]"
+          },
+          "salt": "572350980127",
+          "success": false,
+          "timestamp_ms": 1776841662062
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]",
+          "index": 3,
+          "kind": "error",
+          "latency_ms": 617.212,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]"
+          },
+          "salt": "1610634701271",
+          "success": false,
+          "timestamp_ms": 1776841662062
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]",
+          "index": 4,
+          "kind": "error",
+          "latency_ms": 492.435,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]"
+          },
+          "salt": "805477901177",
+          "success": false,
+          "timestamp_ms": 1776841662062
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]",
+          "index": 5,
+          "kind": "error",
+          "latency_ms": 610.58,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]"
+          },
+          "salt": "872508171251",
+          "success": false,
+          "timestamp_ms": 1776841662062
+        }
+      ],
+      "shared_timestamp_ms": 1776841662062,
+      "summary": {
+        "fastest_success_ms": null,
+        "latency_ms": {
+          "max": 617.261,
+          "median": 610.58,
+          "min": 492.435
+        },
+        "request_counts": {
+          "error": 5
+        }
+      }
+    },
+    {
+      "cleanup_result": null,
+      "fanout": 10,
+      "new_open_order_count": 0,
+      "new_open_order_ids": [],
+      "new_open_orders": [],
+      "requests": [
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]",
+          "index": 1,
+          "kind": "error",
+          "latency_ms": 706.552,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]"
+          },
+          "salt": "401561747502",
+          "success": false,
+          "timestamp_ms": 1776841664679
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]",
+          "index": 2,
+          "kind": "error",
+          "latency_ms": 491.812,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]"
+          },
+          "salt": "171907105999",
+          "success": false,
+          "timestamp_ms": 1776841664679
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]",
+          "index": 3,
+          "kind": "error",
+          "latency_ms": 608.895,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]"
+          },
+          "salt": "1188449378916",
+          "success": false,
+          "timestamp_ms": 1776841664679
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]",
+          "index": 4,
+          "kind": "error",
+          "latency_ms": 493.375,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]"
+          },
+          "salt": "1264617017700",
+          "success": false,
+          "timestamp_ms": 1776841664679
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]",
+          "index": 5,
+          "kind": "error",
+          "latency_ms": 705.219,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]"
+          },
+          "salt": "397373372141",
+          "success": false,
+          "timestamp_ms": 1776841664679
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]",
+          "index": 6,
+          "kind": "error",
+          "latency_ms": 490.597,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]"
+          },
+          "salt": "342458279592",
+          "success": false,
+          "timestamp_ms": 1776841664679
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]",
+          "index": 7,
+          "kind": "error",
+          "latency_ms": 491.824,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]"
+          },
+          "salt": "307996583804",
+          "success": false,
+          "timestamp_ms": 1776841664679
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]",
+          "index": 8,
+          "kind": "error",
+          "latency_ms": 609.795,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]"
+          },
+          "salt": "1254460011560",
+          "success": false,
+          "timestamp_ms": 1776841664679
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]",
+          "index": 9,
+          "kind": "error",
+          "latency_ms": 592.796,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]"
+          },
+          "salt": "67458471244",
+          "success": false,
+          "timestamp_ms": 1776841664679
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]",
+          "index": 10,
+          "kind": "error",
+          "latency_ms": 587.91,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'invalid signature'}]"
+          },
+          "salt": "996339376186",
+          "success": false,
+          "timestamp_ms": 1776841664679
+        }
+      ],
+      "shared_timestamp_ms": 1776841664679,
+      "summary": {
+        "fastest_success_ms": null,
+        "latency_ms": {
+          "max": 706.552,
+          "median": 590.353,
+          "min": 490.597
+        },
+        "request_counts": {
+          "error": 10
+        }
+      }
+    }
+  ],
+  "side": "BUY",
+  "size": "5",
+  "token_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216"
+}

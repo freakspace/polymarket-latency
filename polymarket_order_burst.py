@@ -30,6 +30,7 @@ from py_clob_client_v2 import (
     ApiCreds,
     AssetType,
     BalanceAllowanceParams,
+    BuilderConfig,
     ClobClient,
     OpenOrderParams,
     OrderArgs,
@@ -47,6 +48,14 @@ BUY = "BUY"
 SELL = "SELL"
 
 load_dotenv()
+
+
+def env_first(*names: str) -> str | None:
+    for name in names:
+        value = os.environ.get(name)
+        if value:
+            return value
+    return None
 
 
 def parse_args() -> argparse.Namespace:
@@ -151,6 +160,14 @@ def require_env(name: str) -> str:
     return value
 
 
+def require_any_env(*names: str) -> str:
+    value = env_first(*names)
+    if not value:
+        joined = ", ".join(names)
+        raise RuntimeError(f"missing required environment variable (one of: {joined})")
+    return value
+
+
 def env_truthy(name: str) -> bool:
     value = os.environ.get(name, "")
     return value.strip().lower() in {"1", "true", "yes", "on"}
@@ -160,9 +177,13 @@ def maybe_load_creds_from_env() -> ApiCreds | None:
     if env_truthy("FORCE_DERIVE"):
         return None
 
-    api_key = os.environ.get("CLOB_API_KEY")
-    api_secret = os.environ.get("CLOB_SECRET")
-    api_passphrase = os.environ.get("CLOB_PASS_PHRASE") or os.environ.get("CLOB_PASSPHRASE")
+    api_key = env_first("CLOB_API_KEY", "POLYMARKET_API_KEY")
+    api_secret = env_first("CLOB_SECRET", "POLYMARKET_API_SECRET")
+    api_passphrase = env_first(
+        "CLOB_PASS_PHRASE",
+        "CLOB_PASSPHRASE",
+        "POLYMARKET_API_PASSPHRASE",
+    )
     if api_key and api_secret and api_passphrase:
         return ApiCreds(
             api_key=api_key,
@@ -173,7 +194,34 @@ def maybe_load_creds_from_env() -> ApiCreds | None:
 
 
 def env_builder_code() -> str | None:
-    return os.environ.get("BUILDER_CODE") or os.environ.get("POLY_BUILDER_CODE")
+    return env_first(
+        "BUILDER_CODE",
+        "POLY_BUILDER_CODE",
+        "POLYMARKET_BUILDER_CODE",
+    )
+
+
+def parse_signature_type(raw: str | None, *, default: int = 0) -> int:
+    if raw is None:
+        return default
+
+    value = raw.strip()
+    if not value:
+        return default
+
+    try:
+        return int(value)
+    except ValueError:
+        normalized = value.upper()
+        mapping = {
+            "EOA": 0,
+            "POLY_PROXY": 1,
+            "PROXY": 1,
+            "POLY_GNOSIS_SAFE": 2,
+            "GNOSIS_SAFE": 2,
+            "SAFE": 2,
+        }
+        return mapping.get(normalized, default)
 
 
 def candidate_chain_ids(initial_chain_id: int) -> list[int]:
@@ -183,6 +231,13 @@ def candidate_chain_ids(initial_chain_id: int) -> list[int]:
     elif initial_chain_id == 137:
         chain_ids.append(80002)
     return chain_ids
+
+
+def maybe_builder_config() -> BuilderConfig | None:
+    builder_code = env_builder_code()
+    if not builder_code:
+        return None
+    return BuilderConfig(builder_code=builder_code)
 
 
 def new_client(
@@ -200,6 +255,7 @@ def new_client(
         creds=creds,
         signature_type=signature_type,
         funder=funder,
+        builder_config=maybe_builder_config(),
         use_server_time=True,
     )
 
@@ -255,9 +311,20 @@ def l2_preflight(client: ClobClient) -> None:
 
 
 def build_client(args: argparse.Namespace) -> ClobClient:
-    private_key = require_env("PK")
-    signature_type = int(os.environ.get("SIGNATURE_TYPE", "0"))
-    funder = os.environ.get("FUNDER")
+    private_key = require_any_env(
+        "PK",
+        "POLYMARKET_PRIVATE_KEY",
+        "POLYMARKET_USER_PRIVATE_KEY",
+    )
+    signature_type = parse_signature_type(
+        env_first("SIGNATURE_TYPE", "POLYMARKET_SIGNATURE_TYPE"),
+        default=0,
+    )
+    funder = env_first(
+        "FUNDER",
+        "POLYMARKET_FUNDER",
+        "POLYMARKET_USER_FUNDER_ADDRESS",
+    )
     creds = maybe_load_creds_from_env()
     resolved_chain_id = args.chain_id
 
@@ -435,21 +502,26 @@ def get_balance_allowance_preflight(
     token_id: str,
     side: str,
 ) -> dict[str, dict[str, Any]]:
-    snapshot = {
-        "collateral": to_jsonable(
-            client.get_balance_allowance(
-                BalanceAllowanceParams(asset_type=AssetType.COLLATERAL)
-            )
+    def fetch(asset_type: str, *, token_id_value: str | None = None) -> dict[str, Any]:
+        params = BalanceAllowanceParams(
+            asset_type=asset_type,
+            token_id=token_id_value,
         )
+        try:
+            refreshed = client.update_balance_allowance(params)
+            if refreshed:
+                return to_jsonable(refreshed)
+        except Exception:
+            pass
+        return to_jsonable(client.get_balance_allowance(params))
+
+    snapshot = {
+        "collateral": fetch(AssetType.COLLATERAL)
     }
     if side == SELL:
-        snapshot["conditional"] = to_jsonable(
-            client.get_balance_allowance(
-                BalanceAllowanceParams(
-                    asset_type=AssetType.CONDITIONAL,
-                    token_id=token_id,
-                )
-            )
+        snapshot["conditional"] = fetch(
+            AssetType.CONDITIONAL,
+            token_id_value=token_id,
         )
     return snapshot
 
@@ -478,7 +550,6 @@ def build_shared_timestamp_orders(
     shared_timestamp_ms = time.time_ns() // 1_000_000
     shared_timestamp_ns = shared_timestamp_ms * 1_000_000
     sdk_side = Side.BUY if side == BUY else Side.SELL
-    builder_code = env_builder_code()
 
     orders: list[Any] = []
     with patch(
@@ -486,14 +557,17 @@ def build_shared_timestamp_orders(
         return_value=shared_timestamp_ns,
     ):
         for _ in range(count):
+            order_args_kwargs: dict[str, Any] = {
+                "token_id": token_id,
+                "price": float(price),
+                "side": sdk_side,
+                "size": float(size),
+            }
+            builder_code = env_builder_code()
+            if builder_code:
+                order_args_kwargs["builder_code"] = builder_code
             order = client.create_order(
-                order_args=OrderArgs(
-                    token_id=token_id,
-                    price=float(price),
-                    side=sdk_side,
-                    size=float(size),
-                    builder_code=builder_code or "",
-                ),
+                order_args=OrderArgs(**order_args_kwargs),
                 options=options,
             )
             orders.append(order)

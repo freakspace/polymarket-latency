@@ -946,7 +946,7 @@ class Observation:
     venue_timestamp_ns: Optional[int]
     venue_timestamp_iso: Optional[str]
     venue_timestamp_parse_mode: str
-    raw_event: dict[str, Any]
+    raw_event: Optional[dict[str, Any]] = None
 
     def to_record(self, *, include_raw_event: bool = False) -> dict[str, Any]:
         record = {
@@ -4233,6 +4233,7 @@ async def handle_ws_frame(
     target: BenchmarkTarget,
     event_types: set[str],
     queue: asyncio.Queue[Optional[Observation]],
+    capture_raw_event: bool = False,
 ) -> None:
     if isinstance(raw_message, bytes):
         try:
@@ -4309,7 +4310,7 @@ async def handle_ws_frame(
             venue_timestamp_ns=parsed_ts.epoch_ns,
             venue_timestamp_iso=parsed_ts.iso,
             venue_timestamp_parse_mode=parsed_ts.parse_mode,
-            raw_event=raw_event,
+            raw_event=raw_event if capture_raw_event else None,
         )
         connection_stats.total_events += 1
         await queue.put(observation)
@@ -4322,6 +4323,7 @@ async def run_connection_worker(
     connection_stats: ConnectionRuntimeStats,
     queue: asyncio.Queue[Optional[Observation]],
     stop_event: asyncio.Event,
+    capture_raw_event: bool = False,
 ) -> None:
     tracked_event_types = set(config.event_types)
     compare_seconds = compare_window_seconds(config)
@@ -4399,6 +4401,7 @@ async def run_connection_worker(
                         target=target,
                         event_types=tracked_event_types,
                         queue=queue,
+                        capture_raw_event=capture_raw_event,
                     )
         except asyncio.CancelledError:
             raise
@@ -4555,7 +4558,11 @@ async def run_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
     run_started_ns = time.time_ns()
     run_started_monotonic = time.monotonic()
 
-    queue: asyncio.Queue[Optional[Observation]] = asyncio.Queue(maxsize=50_000)
+    # Queue size bounds peak RAM: each Observation is ~1 KB without raw_event,
+    # far larger with it. 10_000 keeps worst-case backpressure under ~100 MB
+    # even on a 1 GB host; the consumer usually drains well below this.
+    queue: asyncio.Queue[Optional[Observation]] = asyncio.Queue(maxsize=10_000)
+    capture_raw_event = config.write_event_log and config.include_raw_event_payload
     stop_event = asyncio.Event()
     target_state = TargetState(current_target=initial_target)
     target_state.update_target(initial_target, now_ns=run_started_ns)
@@ -4588,6 +4595,7 @@ async def run_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
                         connection_stats=runtime,
                         queue=queue,
                         stop_event=stop_event,
+                        capture_raw_event=capture_raw_event,
                     )
                 )
             )
