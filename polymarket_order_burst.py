@@ -1,25 +1,31 @@
 #!/usr/bin/env python3
 """
-Burst-submit Polymarket CLOB v2 testnet orders to probe duplicate handling
-and latency under concurrent API calls.
+Burst-submit Polymarket CLOB v2 orders to probe duplicate handling and latency.
 
-For each fanout in --counts, the script:
-1. Signs N passive GTC limit orders with the exact same V2 timestamp.
-2. Sends them as N concurrent POST /order API calls.
-3. Measures per-request latency and records the returned status/error.
-4. Checks how many new open orders actually appeared on the book.
-5. Optionally cancels those new orders to keep the test market clean.
+For each fanout in --counts, the script either:
+1. Re-sends the exact same signed order N times (`exact-duplicate` mode), or
+2. Signs N distinct orders sharing the same V2 timestamp (`shared-timestamp` mode).
+
+Then it:
+1. Sends them as N concurrent POST /order API calls.
+2. Measures per-request latency and records the returned status/error.
+3. Checks how many new open orders actually appeared on the book.
+4. Optionally cancels those new orders to keep the market clean.
 """
 
 from __future__ import annotations
 
 import argparse
+import copy
 import json
+import logging
 import os
+import re
 import statistics
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from collections import defaultdict, deque
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -46,8 +52,58 @@ DEFAULT_SETTLE_SECONDS = 1.0
 DEFAULT_OUTPUT_DIR = Path("recordings/order-burst")
 BUY = "BUY"
 SELL = "SELL"
+EXACT_DUPLICATE = "exact-duplicate"
+SHARED_TIMESTAMP = "shared-timestamp"
 
 load_dotenv()
+
+
+class SdkHttpErrorCapture(logging.Handler):
+    def __init__(self, max_entries_per_thread: int = 20):
+        super().__init__(level=logging.ERROR)
+        self._lock = threading.Lock()
+        self._seq = 0
+        self._records_by_thread: dict[int, deque[dict[str, Any]]] = defaultdict(
+            lambda: deque(maxlen=max_entries_per_thread)
+        )
+
+    def mark(self) -> int:
+        with self._lock:
+            return self._seq
+
+    def latest_since(self, thread_id: int, seq: int) -> dict[str, Any] | None:
+        with self._lock:
+            records = self._records_by_thread.get(thread_id)
+            if not records:
+                return None
+            for record in reversed(records):
+                if record["seq"] > seq:
+                    return dict(record)
+            return None
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            message = record.getMessage()
+        except Exception:
+            message = str(record.msg)
+        entry = {
+            "seq": None,
+            "thread_id": record.thread,
+            "logger": record.name,
+            "level": record.levelname,
+            "message": message,
+            "created": record.created,
+        }
+        with self._lock:
+            self._seq += 1
+            entry["seq"] = self._seq
+            self._records_by_thread[record.thread].append(entry)
+
+
+SDK_HTTP_ERROR_CAPTURE = SdkHttpErrorCapture()
+SDK_HTTP_HELPERS_LOGGER = logging.getLogger("py_clob_client_v2.http_helpers.helpers")
+if not any(handler is SDK_HTTP_ERROR_CAPTURE for handler in SDK_HTTP_HELPERS_LOGGER.handlers):
+    SDK_HTTP_HELPERS_LOGGER.addHandler(SDK_HTTP_ERROR_CAPTURE)
 
 
 def env_first(*names: str) -> str | None:
@@ -93,6 +149,23 @@ def parse_args() -> argparse.Namespace:
         "--counts",
         default="1,2,5,10",
         help="Comma-separated fanouts to test. Default: 1,2,5,10.",
+    )
+    parser.add_argument(
+        "--repeats",
+        type=int,
+        default=int(os.environ.get("REPEATS", "1")),
+        help="How many full burst runs to execute. Default: 1.",
+    )
+    parser.add_argument(
+        "--burst-mode",
+        choices=(EXACT_DUPLICATE, SHARED_TIMESTAMP),
+        default=os.environ.get("BURST_MODE", EXACT_DUPLICATE),
+        help=(
+            "Order construction mode. "
+            f"`{EXACT_DUPLICATE}` re-sends the exact same signed order N times. "
+            f"`{SHARED_TIMESTAMP}` signs N distinct orders with one shared timestamp. "
+            f"Default: {EXACT_DUPLICATE}."
+        ),
     )
     parser.add_argument(
         "--host",
@@ -145,6 +218,12 @@ def parse_counts(raw: str) -> list[int]:
             raise ValueError("all burst counts must be positive integers")
         counts.append(value)
     return counts
+
+
+def require_positive_int(name: str, value: int) -> int:
+    if value <= 0:
+        raise ValueError(f"{name} must be a positive integer")
+    return value
 
 
 def decimal_to_str(value: Decimal) -> str:
@@ -496,6 +575,20 @@ def compact_json(value: Any) -> str:
     )
 
 
+def parse_errno(message: str) -> int | None:
+    match = re.search(r"\[Errno (\d+)\]", message)
+    if not match:
+        return None
+    return int(match.group(1))
+
+
+def transport_error_message(payload: dict[str, Any]) -> str:
+    sdk_message = payload.get("sdk_http_error")
+    if sdk_message:
+        return sdk_message
+    return payload.get("error", "")
+
+
 def find_first_value(payload: Any, keys: tuple[str, ...]) -> Any | None:
     if hasattr(payload, "__dict__"):
         payload = vars(payload)
@@ -663,6 +756,62 @@ def build_shared_timestamp_orders(
     return shared_timestamp_ms, orders
 
 
+def build_exact_duplicate_orders(
+    client: ClobClient,
+    token_id: str,
+    price: Decimal,
+    size: Decimal,
+    side: str,
+    options: PartialCreateOrderOptions,
+    count: int,
+) -> tuple[int, list[Any]]:
+    shared_timestamp_ms, orders = build_shared_timestamp_orders(
+        client=client,
+        token_id=token_id,
+        price=price,
+        size=size,
+        side=side,
+        options=options,
+        count=1,
+    )
+    template_order = orders[0]
+    duplicated_orders = [copy.deepcopy(template_order) for _ in range(count)]
+    return shared_timestamp_ms, duplicated_orders
+
+
+def build_orders_for_burst(
+    client: ClobClient,
+    token_id: str,
+    price: Decimal,
+    size: Decimal,
+    side: str,
+    options: PartialCreateOrderOptions,
+    count: int,
+    burst_mode: str,
+) -> tuple[int, list[Any]]:
+    if burst_mode == EXACT_DUPLICATE:
+        return build_exact_duplicate_orders(
+            client=client,
+            token_id=token_id,
+            price=price,
+            size=size,
+            side=side,
+            options=options,
+            count=count,
+        )
+    if burst_mode == SHARED_TIMESTAMP:
+        return build_shared_timestamp_orders(
+            client=client,
+            token_id=token_id,
+            price=price,
+            size=size,
+            side=side,
+            options=options,
+            count=count,
+        )
+    raise ValueError(f"unsupported burst mode: {burst_mode}")
+
+
 def extract_error_text(response: Any) -> str:
     if isinstance(response, BaseException):
         return str(response)
@@ -680,8 +829,10 @@ def extract_error_text(response: Any) -> str:
 
 def response_kind(response: Any) -> str:
     error_text = extract_error_text(response)
-    if "INVALID_ORDER_DUPLICATED" in error_text:
+    if "INVALID_ORDER_DUPLICATED" in error_text or "Duplicated" in error_text:
         return "duplicate"
+    if "Request exception!" in error_text or "Server disconnected" in error_text:
+        return "transport_error"
     if isinstance(response, dict) and response.get("success") is True:
         return "success"
     if error_text:
@@ -696,13 +847,32 @@ def post_one(
     barrier: threading.Barrier,
     index: int,
 ) -> dict[str, Any]:
-    barrier.wait()
+    thread_id = threading.get_ident()
+    log_mark = SDK_HTTP_ERROR_CAPTURE.mark()
+    try:
+        barrier.wait()
+    except threading.BrokenBarrierError as exc:
+        return {
+            "index": index,
+            "latency_ms": 0.0,
+            "timestamp_ms": int(order.timestamp),
+            "salt": str(order.salt),
+            "kind": "internal_error",
+            "error": str(exc),
+            "exception_type": type(exc).__name__,
+            "success": False,
+            "response": {"exception": str(exc)},
+        }
     started_ns = time.perf_counter_ns()
+    exception_obj: BaseException | None = None
     try:
         response = client.post_order(order, OrderType.GTC, post_only=post_only)
     except Exception as exc:
+        exception_obj = exc
         response = exc
     elapsed_ms = (time.perf_counter_ns() - started_ns) / 1_000_000
+    sdk_http_error = SDK_HTTP_ERROR_CAPTURE.latest_since(thread_id, log_mark)
+    sdk_http_error_message = sdk_http_error["message"] if sdk_http_error else None
 
     payload: dict[str, Any] = {
         "index": index,
@@ -712,6 +882,13 @@ def post_one(
         "kind": response_kind(response),
         "error": extract_error_text(response),
     }
+    if exception_obj is not None:
+        payload["exception_type"] = type(exception_obj).__name__
+    if sdk_http_error_message:
+        payload["sdk_http_error"] = sdk_http_error_message
+        errno_value = parse_errno(sdk_http_error_message)
+        if errno_value is not None:
+            payload["sdk_http_errno"] = errno_value
 
     if isinstance(response, dict):
         payload["response"] = response
@@ -749,10 +926,37 @@ def summarise_requests(requests_payload: list[dict[str, Any]]) -> dict[str, Any]
     return summary
 
 
+def summarize_float_samples(values: list[float]) -> dict[str, Any]:
+    if not values:
+        return {"sample_count": 0, "min": None, "median": None, "max": None}
+    rounded = [round(value, 3) for value in values]
+    return {
+        "sample_count": len(rounded),
+        "min": round(min(rounded), 3),
+        "median": round(statistics.median(rounded), 3),
+        "max": round(max(rounded), 3),
+    }
+
+
 def cleanup_orders(client: ClobClient, order_ids: list[str]) -> dict[str, Any] | None:
     if not order_ids:
         return None
-    return client.cancel_orders(order_ids)
+    log_mark = SDK_HTTP_ERROR_CAPTURE.mark()
+    try:
+        return {
+            "success": True,
+            "response": client.cancel_orders(order_ids),
+        }
+    except Exception as exc:
+        payload: dict[str, Any] = {
+            "success": False,
+            "error": extract_error_text(exc),
+            "exception_type": type(exc).__name__,
+        }
+        sdk_http_error = SDK_HTTP_ERROR_CAPTURE.latest_since(threading.get_ident(), log_mark)
+        if sdk_http_error is not None:
+            payload["sdk_http_error"] = sdk_http_error["message"]
+        return payload
 
 
 def run_burst(
@@ -763,12 +967,13 @@ def run_burst(
     size: Decimal,
     options: PartialCreateOrderOptions,
     fanout: int,
+    burst_mode: str,
     post_only: bool,
     cleanup: bool,
     settle_seconds: float,
 ) -> dict[str, Any]:
     before = snapshot_open_orders(client, token_id)
-    shared_timestamp_ms, orders = build_shared_timestamp_orders(
+    shared_timestamp_ms, orders = build_orders_for_burst(
         client=client,
         token_id=token_id,
         price=price,
@@ -776,7 +981,10 @@ def run_burst(
         side=side,
         options=options,
         count=fanout,
+        burst_mode=burst_mode,
     )
+    unique_timestamps = sorted({int(order.timestamp) for order in orders})
+    unique_salts = sorted({str(order.salt) for order in orders})
 
     barrier = threading.Barrier(fanout + 1)
     requests_payload: list[dict[str, Any]] = []
@@ -796,12 +1004,29 @@ def run_burst(
     new_order_ids = sorted(set(after) - set(before))
     new_orders = [after[order_id] for order_id in new_order_ids]
     cleanup_result = cleanup_orders(client, new_order_ids) if cleanup else None
+    client_success_count = sum(1 for item in requests_payload if item.get("success") is True)
+    duplicate_reject_count = sum(1 for item in requests_payload if item["kind"] == "duplicate")
+    transport_error_count = sum(
+        1 for item in requests_payload if item["kind"] == "transport_error"
+    )
+    winner_landed = len(new_order_ids) > 0
+    landed_without_success_response = winner_landed and client_success_count < len(new_order_ids)
 
     return {
         "fanout": fanout,
+        "burst_mode": burst_mode,
         "shared_timestamp_ms": shared_timestamp_ms,
+        "unique_timestamp_count": len(unique_timestamps),
+        "unique_salt_count": len(unique_salts),
+        "unique_timestamps": unique_timestamps,
+        "unique_salts": unique_salts,
         "requests": requests_payload,
         "summary": summarise_requests(requests_payload),
+        "client_success_count": client_success_count,
+        "duplicate_reject_count": duplicate_reject_count,
+        "transport_error_count": transport_error_count,
+        "winner_landed": winner_landed,
+        "landed_without_success_response": landed_without_success_response,
         "new_open_order_ids": new_order_ids,
         "new_open_order_count": len(new_order_ids),
         "new_open_orders": new_orders,
@@ -815,12 +1040,20 @@ def print_burst_summary(result: dict[str, Any]) -> None:
     latency = summary["latency_ms"]
     print("\n" + "=" * 72)
     print(
-        f"fanout={result['fanout']} | shared_timestamp_ms={result['shared_timestamp_ms']} "
+        f"fanout={result['fanout']} | burst_mode={result['burst_mode']} "
+        f"| shared_timestamp_ms={result['shared_timestamp_ms']} "
+        f"| unique_timestamps={result['unique_timestamp_count']} "
+        f"| unique_salts={result['unique_salt_count']} "
         f"| new_open_orders={result['new_open_order_count']}"
     )
     print(
         "request outcomes: "
         + ", ".join(f"{kind}={count}" for kind, count in sorted(request_counts.items()))
+    )
+    print(
+        f"client_successes={result['client_success_count']} "
+        f"| winner_landed={'yes' if result['winner_landed'] else 'no'} "
+        f"| landed_without_success_response={'yes' if result['landed_without_success_response'] else 'no'}"
     )
     print(
         f"latency ms: min={latency['min']:.3f} "
@@ -832,6 +1065,14 @@ def print_burst_summary(result: dict[str, Any]) -> None:
         print("fastest success ms: none")
 
     for request_payload in result["requests"]:
+        transport_detail = ""
+        if request_payload["kind"] == "transport_error":
+            detail = request_payload.get("sdk_http_error")
+            errno_value = request_payload.get("sdk_http_errno")
+            if detail:
+                transport_detail = f" transport_detail={detail!r}"
+            elif errno_value is not None:
+                transport_detail = f" transport_errno={errno_value}"
         print(
             "  "
             f"#{request_payload['index']} latency={request_payload['latency_ms']:.3f}ms "
@@ -839,10 +1080,24 @@ def print_burst_summary(result: dict[str, Any]) -> None:
             f"salt={request_payload['salt']} "
             f"kind={request_payload['kind']} status={request_payload.get('status')!r} "
             f"order_id={request_payload.get('order_id')!r} error={request_payload['error']!r}"
+            f"{transport_detail}"
         )
 
     if result["cleanup_result"] is not None:
         print(f"cleanup result: {json.dumps(result['cleanup_result'], sort_keys=True)}")
+
+    transport_messages = [
+        transport_error_message(request_payload)
+        for request_payload in result["requests"]
+        if request_payload["kind"] == "transport_error"
+    ]
+    if transport_messages:
+        counts: dict[str, int] = {}
+        for message in transport_messages:
+            counts[message] = counts.get(message, 0) + 1
+        print("transport error breakdown:")
+        for message, count in sorted(counts.items(), key=lambda item: (-item[1], item[0])):
+            print(f"  {count}x {message}")
 
     all_invalid_sig = result["requests"] and all(
         "invalid signature" in (r.get("error") or "") for r in result["requests"]
@@ -856,6 +1111,131 @@ def print_burst_summary(result: dict[str, Any]) -> None:
             "POLYMARKET_BUILDER_CODE set (bytes32, not the builder API-key UUID).\n"
             "  - Self-custodial user: the PK must be the actual signer EOA of POLYMARKET_FUNDER. "
             "Re-export it from Polymarket's UI (Settings → Export Private Key)."
+        )
+
+
+def aggregate_repeat_runs(
+    repeat_runs: list[dict[str, Any]],
+    counts: list[int],
+) -> list[dict[str, Any]]:
+    aggregate_rows: list[dict[str, Any]] = []
+    for fanout in counts:
+        matching_results = []
+        for repeat_run in repeat_runs:
+            result = next(
+                (item for item in repeat_run["results"] if item["fanout"] == fanout),
+                None,
+            )
+            if result is not None:
+                matching_results.append((repeat_run, result))
+
+        observed_winner_latencies = [
+            result["summary"]["fastest_success_ms"]
+            for _, result in matching_results
+            if result["summary"]["fastest_success_ms"] is not None
+        ]
+        improvements_vs_repeat_baseline = []
+        comparable_repeat_count = 0
+        beat_repeat_baseline_count = 0
+
+        for repeat_run, result in matching_results:
+            baseline = repeat_run.get("baseline_fastest_success_ms")
+            fastest = result["summary"]["fastest_success_ms"]
+            if baseline is None or fastest is None:
+                continue
+            comparable_repeat_count += 1
+            delta = baseline - fastest
+            improvements_vs_repeat_baseline.append(delta)
+            if delta > 0:
+                beat_repeat_baseline_count += 1
+
+        repeat_count = len(matching_results)
+        winner_landed_count = sum(1 for _, result in matching_results if result["winner_landed"])
+        client_success_repeat_count = sum(
+            1 for _, result in matching_results if result["client_success_count"] > 0
+        )
+        landed_without_success_response_count = sum(
+            1
+            for _, result in matching_results
+            if result["landed_without_success_response"]
+        )
+        duplicate_reject_total = sum(
+            result["duplicate_reject_count"] for _, result in matching_results
+        )
+        transport_error_total = sum(
+            result["transport_error_count"] for _, result in matching_results
+        )
+        orders_landed_total = sum(
+            result["new_open_order_count"] for _, result in matching_results
+        )
+
+        aggregate_rows.append(
+            {
+                "fanout": fanout,
+                "repeat_count": repeat_count,
+                "winner_landed_count": winner_landed_count,
+                "winner_landed_rate": (
+                    winner_landed_count / repeat_count if repeat_count else 0.0
+                ),
+                "client_success_repeat_count": client_success_repeat_count,
+                "client_success_rate": (
+                    client_success_repeat_count / repeat_count if repeat_count else 0.0
+                ),
+                "landed_without_success_response_count": landed_without_success_response_count,
+                "landed_without_success_response_rate": (
+                    landed_without_success_response_count / repeat_count if repeat_count else 0.0
+                ),
+                "duplicate_reject_total": duplicate_reject_total,
+                "transport_error_total": transport_error_total,
+                "orders_landed_total": orders_landed_total,
+                "observed_winner_latency_ms": summarize_float_samples(
+                    observed_winner_latencies
+                ),
+                "improvement_vs_repeat_baseline_ms": summarize_float_samples(
+                    improvements_vs_repeat_baseline
+                ),
+                "comparable_repeat_count": comparable_repeat_count,
+                "beat_repeat_baseline_count": beat_repeat_baseline_count,
+                "beat_repeat_baseline_rate": (
+                    beat_repeat_baseline_count / comparable_repeat_count
+                    if comparable_repeat_count
+                    else 0.0
+                ),
+            }
+        )
+    return aggregate_rows
+
+
+def print_repeat_header(repeat_index: int, repeats: int) -> None:
+    print("\n" + "#" * 72)
+    print(f"repeat {repeat_index}/{repeats}")
+    print("#" * 72)
+
+
+def print_repeat_aggregate_summary(aggregate_rows: list[dict[str, Any]]) -> None:
+    print("\n" + "=" * 72)
+    print("aggregate by fanout")
+    for row in aggregate_rows:
+        observed = row["observed_winner_latency_ms"]
+        delta = row["improvement_vs_repeat_baseline_ms"]
+        observed_text = (
+            f"median={observed['median']:.3f}ms"
+            if observed["median"] is not None
+            else "median=none"
+        )
+        delta_text = (
+            f"median={delta['median']:.3f}ms"
+            if delta["median"] is not None
+            else "median=none"
+        )
+        print(
+            f"fanout={row['fanout']} "
+            f"| winner_landed={row['winner_landed_count']}/{row['repeat_count']} "
+            f"| client_success={row['client_success_repeat_count']}/{row['repeat_count']} "
+            f"| landed_wo_success={row['landed_without_success_response_count']}/{row['repeat_count']} "
+            f"| beat_fanout1={row['beat_repeat_baseline_count']}/{row['comparable_repeat_count']} "
+            f"| observed_winner_latency {observed_text} "
+            f"| delta_vs_1 {delta_text}"
         )
 
 
@@ -875,6 +1255,7 @@ def default_summary_path() -> Path:
 def main() -> None:
     args = parse_args()
     counts = parse_counts(args.counts)
+    require_positive_int("repeats", args.repeats)
     client = build_client(args)
     json_out = args.json_out or default_summary_path()
 
@@ -908,49 +1289,70 @@ def main() -> None:
     print(f"Best bid: {best_price(get_book_field(book, 'bids', []), SELL)}")
     print(f"Best ask: {best_price(get_book_field(book, 'asks', []), BUY)}")
     print(f"Counts: {counts}")
+    print(f"Repeats: {args.repeats}")
+    print(f"Burst mode: {args.burst_mode}")
     print(f"Post only: {args.post_only}")
     print(f"Cleanup: {args.cleanup}")
     print_balance_allowance_preflight(balance_allowance)
 
-    results = []
-    for fanout in counts:
-        result = run_burst(
-            client=client,
-            token_id=args.token_id,
-            side=args.side,
-            price=price,
-            size=size,
-            options=options,
-            fanout=fanout,
-            post_only=args.post_only,
-            cleanup=args.cleanup,
-            settle_seconds=args.settle_seconds,
-        )
-        results.append(result)
-        print_burst_summary(result)
-
-    baseline_fastest = next(
-        (
-            result["summary"]["fastest_success_ms"]
-            for result in results
-            if result["fanout"] == 1 and result["summary"]["fastest_success_ms"] is not None
-        ),
-        None,
-    )
-
-    if baseline_fastest is not None:
-        print("\n" + "=" * 72)
-        print(f"baseline fastest success (fanout=1): {baseline_fastest:.3f}ms")
-        for result in results:
-            fastest = result["summary"]["fastest_success_ms"]
-            if fastest is None:
-                print(f"fanout={result['fanout']} | no successful order placement")
-                continue
-            delta = baseline_fastest - fastest
-            print(
-                f"fanout={result['fanout']} | fastest_success={fastest:.3f}ms "
-                f"| improvement_vs_1={delta:.3f}ms"
+    repeat_runs = []
+    for repeat_index in range(1, args.repeats + 1):
+        print_repeat_header(repeat_index, args.repeats)
+        results = []
+        for fanout in counts:
+            result = run_burst(
+                client=client,
+                token_id=args.token_id,
+                side=args.side,
+                price=price,
+                size=size,
+                options=options,
+                fanout=fanout,
+                burst_mode=args.burst_mode,
+                post_only=args.post_only,
+                cleanup=args.cleanup,
+                settle_seconds=args.settle_seconds,
             )
+            results.append(result)
+            print_burst_summary(result)
+
+        baseline_fastest = next(
+            (
+                result["summary"]["fastest_success_ms"]
+                for result in results
+                if result["fanout"] == 1 and result["summary"]["fastest_success_ms"] is not None
+            ),
+            None,
+        )
+
+        if baseline_fastest is not None:
+            print("\n" + "=" * 72)
+            print(
+                f"repeat {repeat_index}/{args.repeats} baseline fastest success "
+                f"(fanout=1): {baseline_fastest:.3f}ms"
+            )
+            for result in results:
+                fastest = result["summary"]["fastest_success_ms"]
+                if fastest is None:
+                    print(f"fanout={result['fanout']} | no successful order placement")
+                    continue
+                delta = baseline_fastest - fastest
+                print(
+                    f"fanout={result['fanout']} | fastest_success={fastest:.3f}ms "
+                    f"| improvement_vs_1={delta:.3f}ms"
+                )
+
+        repeat_runs.append(
+            {
+                "repeat_index": repeat_index,
+                "baseline_fastest_success_ms": baseline_fastest,
+                "results": results,
+            }
+        )
+
+    aggregate_by_fanout = aggregate_repeat_runs(repeat_runs, counts)
+    if args.repeats > 1:
+        print_repeat_aggregate_summary(aggregate_by_fanout)
 
     payload = {
         "host": args.host,
@@ -960,11 +1362,15 @@ def main() -> None:
         "price": decimal_to_str(price),
         "size": decimal_to_str(size),
         "counts": counts,
+        "repeats": args.repeats,
+        "burst_mode": args.burst_mode,
         "post_only": args.post_only,
         "cleanup": args.cleanup,
         "resolved_chain_id": client.chain_id,
         "balance_allowance_preflight": balance_allowance,
-        "results": results,
+        "results": repeat_runs[0]["results"] if repeat_runs else [],
+        "repeat_runs": repeat_runs,
+        "aggregate_by_fanout": aggregate_by_fanout,
     }
     maybe_write_json(json_out, payload)
 

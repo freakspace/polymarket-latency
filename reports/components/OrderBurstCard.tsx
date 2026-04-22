@@ -1,13 +1,16 @@
 import Link from "next/link";
 import type { OrderBurstListing } from "@/lib/order-burst";
-import { headlineByFanout } from "@/lib/order-burst";
+import { aggregateByFanout, headlineByFanout, repeatRuns } from "@/lib/order-burst";
 import { fmtMs, fmtPercent } from "@/lib/format";
 
 export function OrderBurstCard({ run }: { run: OrderBurstListing }) {
   const headlines = headlineByFanout(run.summary);
+  const aggregateRows = aggregateByFanout(run.summary);
   const largest = headlines[headlines.length - 1];
-  const one = headlines.find((h) => h.fanout === 1);
   const successRateAll = computeOverallSuccess(run);
+  const winnerRateAll = computeOverallWinnerLanded(run);
+  const repeats = run.summary.repeats ?? repeatRuns(run.summary).length;
+  const largestAggregate = aggregateRows[aggregateRows.length - 1];
 
   return (
     <Link
@@ -24,9 +27,9 @@ export function OrderBurstCard({ run }: { run: OrderBurstListing }) {
           </div>
         </div>
         <div className="text-right">
-          <div className="eyebrow">Fanouts</div>
+          <div className="eyebrow">Fanouts / Repeats</div>
           <div className="mt-0.5 font-mono text-sm text-text">
-            {run.summary.counts.join(", ")}
+            {run.summary.counts.join(", ")} / {repeats}
           </div>
         </div>
       </header>
@@ -47,7 +50,7 @@ export function OrderBurstCard({ run }: { run: OrderBurstListing }) {
 
       <div className="mt-1 grid grid-cols-3 gap-2">
         <div>
-          <div className="eyebrow truncate">Success</div>
+          <div className="eyebrow truncate">Client Success</div>
           <div className="mt-0.5 font-mono text-[13px] font-semibold text-text">
             {fmtPercent(successRateAll, 0)}
           </div>
@@ -56,22 +59,22 @@ export function OrderBurstCard({ run }: { run: OrderBurstListing }) {
           </div>
         </div>
         <div>
-          <div className="eyebrow truncate">Fanout=1 fastest</div>
+          <div className="eyebrow truncate">Winner landed</div>
           <div className="mt-0.5 font-mono text-[13px] font-semibold text-text">
-            {fmtMs(one?.fastestMs ?? undefined)}
+            {fmtPercent(winnerRateAll, 0)}
           </div>
-          <div className="text-xxs text-text-subtle">baseline</div>
+          <div className="text-xxs text-text-subtle">across all fanouts</div>
         </div>
         <div>
           <div className="eyebrow truncate">
-            Fanout={largest?.fanout ?? "?"} fastest
+            Fanout={largest?.fanout ?? "?"} winner latency
           </div>
           <div className="mt-0.5 font-mono text-[13px] font-semibold text-text">
             {fmtMs(largest?.fastestMs ?? undefined)}
           </div>
           <div className="text-xxs text-text-subtle">
-            {largest?.improvementVsOneMs != null
-              ? `${largest.improvementVsOneMs > 0 ? "−" : "+"}${Math.abs(largest.improvementVsOneMs).toFixed(1)}ms vs 1`
+            {largestAggregate?.improvement_vs_repeat_baseline_ms?.median != null
+              ? `${largestAggregate.improvement_vs_repeat_baseline_ms.median > 0 ? "−" : "+"}${Math.abs(largestAggregate.improvement_vs_repeat_baseline_ms.median).toFixed(1)}ms vs 1`
               : "—"}
           </div>
         </div>
@@ -85,11 +88,29 @@ export function OrderBurstCard({ run }: { run: OrderBurstListing }) {
 }
 
 function computeOverallSuccess(run: OrderBurstListing): number {
+  const runs = repeatRuns(run.summary);
   let success = 0;
   let total = 0;
-  for (const r of run.summary.results) {
-    total += r.requests.length;
-    success += r.requests.filter((req) => req.kind === "success").length;
+  for (const repeatRun of runs) {
+    for (const r of repeatRun.results) {
+      total += r.requests.length;
+      success +=
+        r.client_success_count ??
+        r.requests.filter((req) => req.kind === "success").length;
+    }
   }
   return total === 0 ? 0 : success / total;
+}
+
+function computeOverallWinnerLanded(run: OrderBurstListing): number {
+  const runs = repeatRuns(run.summary);
+  let landed = 0;
+  let total = 0;
+  for (const repeatRun of runs) {
+    for (const r of repeatRun.results) {
+      total += 1;
+      landed += (r.winner_landed ?? r.new_open_order_count > 0) ? 1 : 0;
+    }
+  }
+  return total === 0 ? 0 : landed / total;
 }

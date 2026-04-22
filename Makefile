@@ -23,6 +23,7 @@ help:
 	@echo "  make order-burst TOKEN_ID=<token-id>"
 	@echo "    Run the Polymarket CLOB v2 duplicate/latency burst test."
 	@echo "    Writes $(ORDER_BURST_DIR)/<timestamp>/summary.json by default."
+	@echo "    Optional: REPEATS=10 BURST_MODE=exact-duplicate COUNTS=1,2,5,10"
 	@echo ""
 	@echo "  make web"
 	@echo "    Build and serve the Next.js report dashboard on http://0.0.0.0:3000"
@@ -93,6 +94,8 @@ order-burst:
 	if [[ -n "$${PRICE:-}" ]]; then args+=(--price "$$PRICE"); fi; \
 	if [[ -n "$${SIZE:-}" ]]; then args+=(--size "$$SIZE"); fi; \
 	if [[ -n "$${COUNTS:-}" ]]; then args+=(--counts "$$COUNTS"); fi; \
+	if [[ -n "$${REPEATS:-}" ]]; then args+=(--repeats "$$REPEATS"); fi; \
+	if [[ -n "$${BURST_MODE:-}" ]]; then args+=(--burst-mode "$$BURST_MODE"); fi; \
 	if [[ -n "$${HOST:-}" ]]; then args+=(--host "$$HOST"); fi; \
 	if [[ -n "$${CHAIN_ID:-}" ]]; then args+=(--chain-id "$$CHAIN_ID"); fi; \
 	if [[ -n "$${SETTLE_SECONDS:-}" ]]; then args+=(--settle-seconds "$$SETTLE_SECONDS"); fi; \

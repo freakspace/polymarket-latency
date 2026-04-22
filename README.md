@@ -108,16 +108,29 @@ make order-burst \
 
 That example uses the "US / Iran nuclear deal in 2027?" test market from the Polymarket V2 migration docs. The script defaults to a tiny passive BUY order, `post_only=true`, and cleanup enabled so it can measure placement behavior without intentionally crossing the spread.
 
+By default, `make order-burst` now uses `exact-duplicate` mode, which re-sends the exact same signed order N times for each fanout. To reproduce the older behavior of distinct orders sharing only the timestamp, pass `BURST_MODE=shared-timestamp`.
+
+To collect enough data for the latency question, run repeated trials and compare each repeat's fastest duplicate winner against that same repeat's `fanout=1` baseline. The script writes both the raw per-repeat results and an `aggregate_by_fanout` section into `summary.json`.
+
 Useful overrides:
 
 ```bash
 make order-burst \
   TOKEN_ID=102936224134271070189104847090829839924697394514566827387181305960175107677216 \
   COUNTS=1,2,5,10 \
+  REPEATS=10 \
+  BURST_MODE=exact-duplicate \
   PRICE=0.01 \
   SIZE=5 \
   CLEANUP=1
 ```
+
+That setup answers the main question directly:
+
+- `Winner landed` tells you whether at least one duplicate actually reached the book for that fanout.
+- `Winner latency` is the fastest successful client response seen for that repeat/fanout.
+- `Median Δ vs 1` tells you whether duplicate fanout beat the single-submit baseline.
+- `Beat 1` shows how often that fanout was faster than `fanout=1` across all repeats.
 
 ## Clock Synchronization (VPS/Ubuntu)
 

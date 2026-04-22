@@ -1,20 +1,62 @@
 import type { OrderBurstListing, OrderBurstRequest } from "@/lib/order-burst";
-import { headlineByFanout } from "@/lib/order-burst";
+import { aggregateByFanout, repeatRuns } from "@/lib/order-burst";
 import { fmtMs, fmtPercent } from "@/lib/format";
 
 export function OrderBurstReport({ run }: { run: OrderBurstListing }) {
   const s = run.summary;
-  const headlines = headlineByFanout(s);
-  const baselineFastest = headlines.find((h) => h.fanout === 1)?.fastestMs;
+  const repeatRunsList = repeatRuns(s);
+  const aggregateRows = aggregateByFanout(s);
+  const baselineRow = aggregateRows.find((row) => row.fanout === 1);
 
-  const totalReqs = s.results.reduce((a, r) => a + r.requests.length, 0);
-  const totalSuccess = s.results.reduce(
-    (a, r) => a + r.requests.filter((q) => q.kind === "success").length,
+  const totalReqs = repeatRunsList.reduce(
+    (sum, repeatRun) =>
+      sum +
+      repeatRun.results.reduce((inner, r) => inner + r.requests.length, 0),
+    0
+  );
+  const totalSuccess = repeatRunsList.reduce(
+    (sum, repeatRun) =>
+      sum +
+      repeatRun.results.reduce(
+        (inner, r) =>
+          inner +
+          (r.client_success_count ??
+            r.requests.filter((q) => q.kind === "success").length),
+        0
+      ),
+    0
+  );
+  const totalFanoutRuns = repeatRunsList.reduce(
+    (sum, repeatRun) => sum + repeatRun.results.length,
+    0
+  );
+  const totalWinnersLanded = repeatRunsList.reduce(
+    (sum, repeatRun) =>
+      sum +
+      repeatRun.results.reduce(
+        (inner, r) => inner + ((r.winner_landed ?? r.new_open_order_count > 0) ? 1 : 0),
+        0
+      ),
+    0
+  );
+  const totalLandedWithoutSuccess = repeatRunsList.reduce(
+    (sum, repeatRun) =>
+      sum +
+      repeatRun.results.reduce((inner, r) => {
+        const clientSuccessCount =
+          r.client_success_count ??
+          r.requests.filter((q) => q.kind === "success").length;
+        const landedWithoutSuccess =
+          r.landed_without_success_response ??
+          (r.new_open_order_count > 0 && clientSuccessCount < r.new_open_order_count);
+        return inner + (landedWithoutSuccess ? 1 : 0);
+      }, 0),
     0
   );
   const totalErrors = totalReqs - totalSuccess;
-  const totalOrdersOnBook = s.results.reduce(
-    (a, r) => a + r.new_open_order_count,
+  const totalOrdersOnBook = repeatRunsList.reduce(
+    (sum, repeatRun) =>
+      sum + repeatRun.results.reduce((inner, r) => inner + r.new_open_order_count, 0),
     0
   );
 
@@ -51,12 +93,18 @@ export function OrderBurstReport({ run }: { run: OrderBurstListing }) {
         </div>
       </header>
 
-      <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 md:grid-cols-6">
+        <Kpi label="Repeats" value={String(s.repeats ?? repeatRunsList.length)} />
         <Kpi label="Requests" value={totalReqs.toLocaleString()} />
         <Kpi
-          label="Success"
+          label="Client Success"
           value={`${totalSuccess}/${totalReqs}`}
           detail={fmtPercent(totalReqs ? totalSuccess / totalReqs : 0, 0)}
+        />
+        <Kpi
+          label="Winner Landed"
+          value={`${totalWinnersLanded}/${totalFanoutRuns}`}
+          detail="fanouts with at least one order on book"
         />
         <Kpi
           label="Errors"
@@ -68,71 +116,106 @@ export function OrderBurstReport({ run }: { run: OrderBurstListing }) {
           value={totalOrdersOnBook.toString()}
           detail="seen on book post-burst"
         />
+        <Kpi
+          label="Landed Without Success"
+          value={totalLandedWithoutSuccess.toString()}
+          detail="winner landed, but client saw no matching success"
+        />
       </section>
 
       <section className="card card-pad">
         <div className="eyebrow mb-2">Per-fanout summary</div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px] text-sm">
+          <table className="w-full min-w-[960px] text-sm">
             <thead>
               <tr className="text-left text-xxs uppercase tracking-wider text-text-subtle">
                 <th className="py-2 pr-4">Fanout</th>
-                <th className="py-2 pr-4">Success</th>
-                <th className="py-2 pr-4">Fastest success</th>
-                <th className="py-2 pr-4">Median</th>
-                <th className="py-2 pr-4">Min / Max</th>
-                <th className="py-2 pr-4">Δ vs fanout=1</th>
+                <th className="py-2 pr-4">Repeats</th>
+                <th className="py-2 pr-4">Winner landed</th>
+                <th className="py-2 pr-4">Client success</th>
+                <th className="py-2 pr-4">Winner latency</th>
+                <th className="py-2 pr-4">Range</th>
+                <th className="py-2 pr-4">Median Δ vs 1</th>
+                <th className="py-2 pr-4">Beat 1</th>
+                <th className="py-2 pr-4">Dupes</th>
+                <th className="py-2 pr-4">Transport</th>
+                <th className="py-2 pr-4">Landed w/o success</th>
                 <th className="py-2 pr-4">On book</th>
               </tr>
             </thead>
             <tbody className="font-mono text-[13px]">
-              {headlines.map((h) => {
-                const res = s.results.find((r) => r.fanout === h.fanout);
-                const newOnBook = res?.new_open_order_count ?? 0;
+              {aggregateRows.map((row) => {
                 return (
                   <tr
-                    key={h.fanout}
+                    key={row.fanout}
                     className="border-t border-border/60 text-text"
                   >
-                    <td className="py-2 pr-4">{h.fanout}</td>
+                    <td className="py-2 pr-4">{row.fanout}</td>
+                    <td className="py-2 pr-4">{row.repeat_count}</td>
                     <td className="py-2 pr-4">
-                      {h.successCount}/{h.totalCount}{" "}
+                      {row.winner_landed_count}/{row.repeat_count}{" "}
                       <span className="text-text-subtle">
-                        ({fmtPercent(h.successRate, 0)})
+                        ({fmtPercent(row.winner_landed_rate, 0)})
                       </span>
                     </td>
-                    <td className="py-2 pr-4">{fmtMs(h.fastestMs ?? undefined)}</td>
-                    <td className="py-2 pr-4">{fmtMs(h.medianMs)}</td>
                     <td className="py-2 pr-4">
-                      {fmtMs(h.minMs)}{" "}
+                      {row.client_success_repeat_count}/{row.repeat_count}{" "}
+                      <span className="text-text-subtle">
+                        ({fmtPercent(row.client_success_rate, 0)})
+                      </span>
+                    </td>
+                    <td className="py-2 pr-4">
+                      {fmtMs(row.observed_winner_latency_ms.median ?? undefined)}
+                    </td>
+                    <td className="py-2 pr-4">
+                      {fmtMs(row.observed_winner_latency_ms.min ?? undefined)}{" "}
                       <span className="text-text-subtle">/</span>{" "}
-                      {fmtMs(h.maxMs)}
+                      {fmtMs(row.observed_winner_latency_ms.max ?? undefined)}
                     </td>
                     <td className="py-2 pr-4">
-                      {h.improvementVsOneMs == null
+                      {row.improvement_vs_repeat_baseline_ms.median == null
                         ? "—"
-                        : h.fanout === 1
+                        : row.fanout === 1
                           ? "baseline"
-                          : `${h.improvementVsOneMs >= 0 ? "−" : "+"}${Math.abs(h.improvementVsOneMs).toFixed(1)}ms`}
+                          : `${row.improvement_vs_repeat_baseline_ms.median >= 0 ? "−" : "+"}${Math.abs(row.improvement_vs_repeat_baseline_ms.median).toFixed(1)}ms`}
                     </td>
-                    <td className="py-2 pr-4">{newOnBook}</td>
+                    <td className="py-2 pr-4">
+                      {row.beat_repeat_baseline_count}/{row.comparable_repeat_count}
+                    </td>
+                    <td className="py-2 pr-4">{row.duplicate_reject_total}</td>
+                    <td className="py-2 pr-4">{row.transport_error_total}</td>
+                    <td className="py-2 pr-4">
+                      {row.landed_without_success_response_count}/{row.repeat_count}
+                    </td>
+                    <td className="py-2 pr-4">{row.orders_landed_total}</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
         </div>
-        {baselineFastest != null && (
+        {baselineRow?.observed_winner_latency_ms.median != null && (
           <div className="mt-3 text-xxs text-text-subtle">
-            Baseline is the fastest successful response at fanout=1
-            ({fmtMs(baselineFastest)}). Negative Δ means the fanout beat the
-            baseline.
+            Winner latency uses the fastest successful client response seen in a
+            repeat. Δ is measured against that same repeat’s fanout=1 baseline.
           </div>
         )}
       </section>
 
-      {s.results.map((r) => (
-        <FanoutDetail key={r.fanout} result={r} />
+      {repeatRunsList.map((repeatRun) => (
+        <section key={repeatRun.repeat_index} className="flex flex-col gap-4">
+          {repeatRunsList.length > 1 && (
+            <div className="eyebrow">
+              repeat {repeatRun.repeat_index}/{repeatRunsList.length}
+            </div>
+          )}
+          {repeatRun.results.map((r) => (
+            <FanoutDetail
+              key={`${repeatRun.repeat_index}-${r.fanout}`}
+              result={r}
+            />
+          ))}
+        </section>
       ))}
     </div>
   );
@@ -167,6 +250,14 @@ function FanoutDetail({
 }) {
   const requests = [...result.requests].sort((a, b) => a.index - b.index);
   const counts = result.summary.request_counts;
+  const clientSuccessCount =
+    result.client_success_count ??
+    result.requests.filter((req) => req.kind === "success").length;
+  const winnerLanded = result.winner_landed ?? result.new_open_order_count > 0;
+  const landedWithoutSuccessResponse =
+    result.landed_without_success_response ??
+    (result.new_open_order_count > 0 &&
+      clientSuccessCount < result.new_open_order_count);
   return (
     <section className="card card-pad">
       <header className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
@@ -185,6 +276,12 @@ function FanoutDetail({
           </div>
         </div>
         <div className="font-mono text-xs text-text-muted">
+          client success: {clientSuccessCount}/{result.requests.length}
+          <span className="mx-2 text-text-subtle">·</span>
+          winner landed: {winnerLanded ? "yes" : "no"}
+          <span className="mx-2 text-text-subtle">·</span>
+          landed w/o success: {landedWithoutSuccessResponse ? "yes" : "no"}
+          <span className="mx-2 text-text-subtle">·</span>
           on book: {result.new_open_order_count}/{result.requests.length}
         </div>
       </header>

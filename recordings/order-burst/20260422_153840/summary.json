@@ -1,0 +1,456 @@
+{
+  "balance_allowance_preflight": {
+    "collateral": {
+      "allowances": {
+        "0xE111180000d2663C0091e4f400237545B87B996B": "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+        "0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296": "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+        "0xe2222d279d744050d28e00520010520000310F59": "115792089237316195423570985008687907853269984665640564039457584007913129639935"
+      },
+      "balance": "1604393"
+    }
+  },
+  "burst_mode": "exact-duplicate",
+  "chain_id": 137,
+  "cleanup": true,
+  "counts": [
+    1,
+    2,
+    5,
+    10
+  ],
+  "host": "https://clob-v2.polymarket.com",
+  "post_only": true,
+  "price": "0.01",
+  "resolved_chain_id": 137,
+  "results": [
+    {
+      "burst_mode": "exact-duplicate",
+      "cleanup_result": {
+        "canceled": [
+          "0x40ecca4787c96cb3d702fcd7d391d0c696e77657f1eb699705f1b341f1c08818"
+        ],
+        "not_canceled": {}
+      },
+      "fanout": 1,
+      "new_open_order_count": 1,
+      "new_open_order_ids": [
+        "0x40ecca4787c96cb3d702fcd7d391d0c696e77657f1eb699705f1b341f1c08818"
+      ],
+      "new_open_orders": [
+        {
+          "asset_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216",
+          "associate_trades": [],
+          "created_at": 1776847126,
+          "expiration": "0",
+          "id": "0x40ecca4787c96cb3d702fcd7d391d0c696e77657f1eb699705f1b341f1c08818",
+          "maker_address": "0xEB6450dFa11842B5b5ddd392e1C96e5CA187B38E",
+          "market": "0x182390641d3b1b47cc64274b9da290efd04221c586651ba190880713da6347d9",
+          "order_type": "GTC",
+          "original_size": "5",
+          "outcome": "Yes",
+          "owner": "daa8241e-f590-fb61-309a-76e0ee39a51f",
+          "price": "0.01",
+          "side": "BUY",
+          "size_matched": "0",
+          "status": "LIVE"
+        }
+      ],
+      "requests": [
+        {
+          "error": "",
+          "index": 1,
+          "kind": "success",
+          "latency_ms": 530.105,
+          "order_id": "0x40ecca4787c96cb3d702fcd7d391d0c696e77657f1eb699705f1b341f1c08818",
+          "response": {
+            "errorMsg": "",
+            "makingAmount": "",
+            "orderID": "0x40ecca4787c96cb3d702fcd7d391d0c696e77657f1eb699705f1b341f1c08818",
+            "status": "live",
+            "success": true,
+            "takingAmount": ""
+          },
+          "salt": "165801842740",
+          "status": "live",
+          "success": true,
+          "timestamp_ms": 1776847124982
+        }
+      ],
+      "shared_timestamp_ms": 1776847124982,
+      "summary": {
+        "fastest_success_ms": 530.105,
+        "latency_ms": {
+          "max": 530.105,
+          "median": 530.105,
+          "min": 530.105
+        },
+        "request_counts": {
+          "success": 1
+        }
+      },
+      "unique_salt_count": 1,
+      "unique_salts": [
+        "165801842740"
+      ],
+      "unique_timestamp_count": 1,
+      "unique_timestamps": [
+        1776847124982
+      ]
+    },
+    {
+      "burst_mode": "exact-duplicate",
+      "cleanup_result": null,
+      "fanout": 2,
+      "new_open_order_count": 0,
+      "new_open_order_ids": [],
+      "new_open_orders": [],
+      "requests": [
+        {
+          "error": "PolyApiException[status_code=None, error_message=Request exception!]",
+          "index": 1,
+          "kind": "error",
+          "latency_ms": 2.116,
+          "response": {
+            "exception": "PolyApiException[status_code=None, error_message=Request exception!]"
+          },
+          "salt": "1385093916009",
+          "success": false,
+          "timestamp_ms": 1776847128557
+        },
+        {
+          "error": "PolyApiException[status_code=None, error_message=Request exception!]",
+          "index": 2,
+          "kind": "error",
+          "latency_ms": 1.673,
+          "response": {
+            "exception": "PolyApiException[status_code=None, error_message=Request exception!]"
+          },
+          "salt": "1385093916009",
+          "success": false,
+          "timestamp_ms": 1776847128557
+        }
+      ],
+      "shared_timestamp_ms": 1776847128557,
+      "summary": {
+        "fastest_success_ms": null,
+        "latency_ms": {
+          "max": 2.116,
+          "median": 1.895,
+          "min": 1.673
+        },
+        "request_counts": {
+          "error": 2
+        }
+      },
+      "unique_salt_count": 1,
+      "unique_salts": [
+        "1385093916009"
+      ],
+      "unique_timestamp_count": 1,
+      "unique_timestamps": [
+        1776847128557
+      ]
+    },
+    {
+      "burst_mode": "exact-duplicate",
+      "cleanup_result": {
+        "canceled": [
+          "0x2977b6d7111da78e0b596df9ca0037452125908480b66d93173356d4f363ce9c"
+        ],
+        "not_canceled": {}
+      },
+      "fanout": 5,
+      "new_open_order_count": 1,
+      "new_open_order_ids": [
+        "0x2977b6d7111da78e0b596df9ca0037452125908480b66d93173356d4f363ce9c"
+      ],
+      "new_open_orders": [
+        {
+          "asset_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216",
+          "associate_trades": [],
+          "created_at": 1776847132,
+          "expiration": "0",
+          "id": "0x2977b6d7111da78e0b596df9ca0037452125908480b66d93173356d4f363ce9c",
+          "maker_address": "0xEB6450dFa11842B5b5ddd392e1C96e5CA187B38E",
+          "market": "0x182390641d3b1b47cc64274b9da290efd04221c586651ba190880713da6347d9",
+          "order_type": "GTC",
+          "original_size": "5",
+          "outcome": "Yes",
+          "owner": "daa8241e-f590-fb61-309a-76e0ee39a51f",
+          "price": "0.01",
+          "side": "BUY",
+          "size_matched": "0",
+          "status": "LIVE"
+        }
+      ],
+      "requests": [
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x2977b6d7111da78e0b596df9ca0037452125908480b66d93173356d4f363ce9c is invalid. Duplicated.'}]",
+          "index": 1,
+          "kind": "error",
+          "latency_ms": 1040.37,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x2977b6d7111da78e0b596df9ca0037452125908480b66d93173356d4f363ce9c is invalid. Duplicated.'}]"
+          },
+          "salt": "114048796390",
+          "success": false,
+          "timestamp_ms": 1776847131039
+        },
+        {
+          "error": "PolyApiException[status_code=None, error_message=Request exception!]",
+          "index": 2,
+          "kind": "error",
+          "latency_ms": 566.281,
+          "response": {
+            "exception": "PolyApiException[status_code=None, error_message=Request exception!]"
+          },
+          "salt": "114048796390",
+          "success": false,
+          "timestamp_ms": 1776847131039
+        },
+        {
+          "error": "PolyApiException[status_code=None, error_message=Request exception!]",
+          "index": 3,
+          "kind": "error",
+          "latency_ms": 567.101,
+          "response": {
+            "exception": "PolyApiException[status_code=None, error_message=Request exception!]"
+          },
+          "salt": "114048796390",
+          "success": false,
+          "timestamp_ms": 1776847131039
+        },
+        {
+          "error": "PolyApiException[status_code=None, error_message=Request exception!]",
+          "index": 4,
+          "kind": "error",
+          "latency_ms": 566.613,
+          "response": {
+            "exception": "PolyApiException[status_code=None, error_message=Request exception!]"
+          },
+          "salt": "114048796390",
+          "success": false,
+          "timestamp_ms": 1776847131039
+        },
+        {
+          "error": "PolyApiException[status_code=None, error_message=Request exception!]",
+          "index": 5,
+          "kind": "error",
+          "latency_ms": 566.121,
+          "response": {
+            "exception": "PolyApiException[status_code=None, error_message=Request exception!]"
+          },
+          "salt": "114048796390",
+          "success": false,
+          "timestamp_ms": 1776847131039
+        }
+      ],
+      "shared_timestamp_ms": 1776847131039,
+      "summary": {
+        "fastest_success_ms": null,
+        "latency_ms": {
+          "max": 1040.37,
+          "median": 566.613,
+          "min": 566.121
+        },
+        "request_counts": {
+          "error": 5
+        }
+      },
+      "unique_salt_count": 1,
+      "unique_salts": [
+        "114048796390"
+      ],
+      "unique_timestamp_count": 1,
+      "unique_timestamps": [
+        1776847131039
+      ]
+    },
+    {
+      "burst_mode": "exact-duplicate",
+      "cleanup_result": {
+        "canceled": [
+          "0x64c4c62efc60476ac62f6be5e9fb4f073d4bc1075019c1b0f67151ef126216b9"
+        ],
+        "not_canceled": {}
+      },
+      "fanout": 10,
+      "new_open_order_count": 1,
+      "new_open_order_ids": [
+        "0x64c4c62efc60476ac62f6be5e9fb4f073d4bc1075019c1b0f67151ef126216b9"
+      ],
+      "new_open_orders": [
+        {
+          "asset_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216",
+          "associate_trades": [],
+          "created_at": 1776847135,
+          "expiration": "0",
+          "id": "0x64c4c62efc60476ac62f6be5e9fb4f073d4bc1075019c1b0f67151ef126216b9",
+          "maker_address": "0xEB6450dFa11842B5b5ddd392e1C96e5CA187B38E",
+          "market": "0x182390641d3b1b47cc64274b9da290efd04221c586651ba190880713da6347d9",
+          "order_type": "GTC",
+          "original_size": "5",
+          "outcome": "Yes",
+          "owner": "daa8241e-f590-fb61-309a-76e0ee39a51f",
+          "price": "0.01",
+          "side": "BUY",
+          "size_matched": "0",
+          "status": "LIVE"
+        }
+      ],
+      "requests": [
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x64c4c62efc60476ac62f6be5e9fb4f073d4bc1075019c1b0f67151ef126216b9 is invalid. Duplicated.'}]",
+          "index": 1,
+          "kind": "error",
+          "latency_ms": 539.376,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x64c4c62efc60476ac62f6be5e9fb4f073d4bc1075019c1b0f67151ef126216b9 is invalid. Duplicated.'}]"
+          },
+          "salt": "1632703746084",
+          "success": false,
+          "timestamp_ms": 1776847134722
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x64c4c62efc60476ac62f6be5e9fb4f073d4bc1075019c1b0f67151ef126216b9 is invalid. Duplicated.'}]",
+          "index": 2,
+          "kind": "error",
+          "latency_ms": 535.28,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x64c4c62efc60476ac62f6be5e9fb4f073d4bc1075019c1b0f67151ef126216b9 is invalid. Duplicated.'}]"
+          },
+          "salt": "1632703746084",
+          "success": false,
+          "timestamp_ms": 1776847134722
+        },
+        {
+          "error": "",
+          "index": 3,
+          "kind": "success",
+          "latency_ms": 535.364,
+          "order_id": "0x64c4c62efc60476ac62f6be5e9fb4f073d4bc1075019c1b0f67151ef126216b9",
+          "response": {
+            "errorMsg": "",
+            "makingAmount": "",
+            "orderID": "0x64c4c62efc60476ac62f6be5e9fb4f073d4bc1075019c1b0f67151ef126216b9",
+            "status": "live",
+            "success": true,
+            "takingAmount": ""
+          },
+          "salt": "1632703746084",
+          "status": "live",
+          "success": true,
+          "timestamp_ms": 1776847134722
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x64c4c62efc60476ac62f6be5e9fb4f073d4bc1075019c1b0f67151ef126216b9 is invalid. Duplicated.'}]",
+          "index": 4,
+          "kind": "error",
+          "latency_ms": 650.563,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x64c4c62efc60476ac62f6be5e9fb4f073d4bc1075019c1b0f67151ef126216b9 is invalid. Duplicated.'}]"
+          },
+          "salt": "1632703746084",
+          "success": false,
+          "timestamp_ms": 1776847134722
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x64c4c62efc60476ac62f6be5e9fb4f073d4bc1075019c1b0f67151ef126216b9 is invalid. Duplicated.'}]",
+          "index": 5,
+          "kind": "error",
+          "latency_ms": 540.495,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x64c4c62efc60476ac62f6be5e9fb4f073d4bc1075019c1b0f67151ef126216b9 is invalid. Duplicated.'}]"
+          },
+          "salt": "1632703746084",
+          "success": false,
+          "timestamp_ms": 1776847134722
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x64c4c62efc60476ac62f6be5e9fb4f073d4bc1075019c1b0f67151ef126216b9 is invalid. Duplicated.'}]",
+          "index": 6,
+          "kind": "error",
+          "latency_ms": 648.692,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x64c4c62efc60476ac62f6be5e9fb4f073d4bc1075019c1b0f67151ef126216b9 is invalid. Duplicated.'}]"
+          },
+          "salt": "1632703746084",
+          "success": false,
+          "timestamp_ms": 1776847134722
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x64c4c62efc60476ac62f6be5e9fb4f073d4bc1075019c1b0f67151ef126216b9 is invalid. Duplicated.'}]",
+          "index": 7,
+          "kind": "error",
+          "latency_ms": 645.846,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x64c4c62efc60476ac62f6be5e9fb4f073d4bc1075019c1b0f67151ef126216b9 is invalid. Duplicated.'}]"
+          },
+          "salt": "1632703746084",
+          "success": false,
+          "timestamp_ms": 1776847134722
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x64c4c62efc60476ac62f6be5e9fb4f073d4bc1075019c1b0f67151ef126216b9 is invalid. Duplicated.'}]",
+          "index": 8,
+          "kind": "error",
+          "latency_ms": 533.933,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x64c4c62efc60476ac62f6be5e9fb4f073d4bc1075019c1b0f67151ef126216b9 is invalid. Duplicated.'}]"
+          },
+          "salt": "1632703746084",
+          "success": false,
+          "timestamp_ms": 1776847134722
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x64c4c62efc60476ac62f6be5e9fb4f073d4bc1075019c1b0f67151ef126216b9 is invalid. Duplicated.'}]",
+          "index": 9,
+          "kind": "error",
+          "latency_ms": 529.977,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x64c4c62efc60476ac62f6be5e9fb4f073d4bc1075019c1b0f67151ef126216b9 is invalid. Duplicated.'}]"
+          },
+          "salt": "1632703746084",
+          "success": false,
+          "timestamp_ms": 1776847134722
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x64c4c62efc60476ac62f6be5e9fb4f073d4bc1075019c1b0f67151ef126216b9 is invalid. Duplicated.'}]",
+          "index": 10,
+          "kind": "error",
+          "latency_ms": 534.642,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x64c4c62efc60476ac62f6be5e9fb4f073d4bc1075019c1b0f67151ef126216b9 is invalid. Duplicated.'}]"
+          },
+          "salt": "1632703746084",
+          "success": false,
+          "timestamp_ms": 1776847134722
+        }
+      ],
+      "shared_timestamp_ms": 1776847134722,
+      "summary": {
+        "fastest_success_ms": 535.364,
+        "latency_ms": {
+          "max": 650.563,
+          "median": 537.37,
+          "min": 529.977
+        },
+        "request_counts": {
+          "error": 9,
+          "success": 1
+        }
+      },
+      "unique_salt_count": 1,
+      "unique_salts": [
+        "1632703746084"
+      ],
+      "unique_timestamp_count": 1,
+      "unique_timestamps": [
+        1776847134722
+      ]
+    }
+  ],
+  "side": "BUY",
+  "size": "5",
+  "token_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216"
+}

@@ -12,11 +12,16 @@ from __future__ import annotations
 import argparse
 import asyncio
 import contextlib
+import ctypes
+import ctypes.util
+import gc
 import hashlib
 import html
 import json
 import math
+import os
 import random
+import resource
 import statistics
 import sys
 import time
@@ -428,6 +433,31 @@ def ns_to_iso(epoch_ns: int) -> str:
 def format_elapsed(seconds: float) -> str:
     minutes, remainder = divmod(max(0, int(seconds)), 60)
     return f"{minutes:02d}:{remainder:02d}"
+
+
+def current_rss_bytes() -> Optional[int]:
+    try:
+        with open("/proc/self/statm", "r") as handle:
+            resident_pages = int(handle.read().split()[1])
+        return resident_pages * os.sysconf("SC_PAGESIZE")
+    except (OSError, ValueError, IndexError, AttributeError):
+        pass
+    try:
+        rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        return rss if sys.platform == "darwin" else rss * 1024
+    except OSError:
+        return None
+
+
+def format_bytes(value: Optional[int]) -> str:
+    if value is None:
+        return "n/a"
+    size = float(value)
+    for unit in ("B", "KiB", "MiB", "GiB"):
+        if size < 1024 or unit == "GiB":
+            return f"{size:.1f} {unit}" if unit != "B" else f"{int(size)} {unit}"
+        size /= 1024
+    return f"{size:.1f} GiB"
 
 
 def percentile(values: list[float], p: float) -> Optional[float]:
@@ -4359,6 +4389,7 @@ async def run_connection_worker(
                 open_timeout=config.open_timeout_seconds,
                 ping_interval=config.ping_interval_seconds,
                 ping_timeout=config.ping_interval_seconds,
+                max_queue=4,
             ) as websocket:
                 now_monotonic = time.monotonic()
                 connection_stats.note_connect(
@@ -4443,6 +4474,40 @@ async def consume_observations(
             )
 
 
+def _resolve_malloc_trim() -> Optional[Callable[[int], int]]:
+    # Glibc-only: returns freed arena pages to the OS, mitigating
+    # fragmentation from high-churn json.loads workloads. Silent no-op
+    # elsewhere (macOS, musl, etc.).
+    libc_name = ctypes.util.find_library("c")
+    if not libc_name:
+        return None
+    try:
+        libc = ctypes.CDLL(libc_name)
+    except OSError:
+        return None
+    trim = getattr(libc, "malloc_trim", None)
+    if trim is None:
+        return None
+    trim.argtypes = [ctypes.c_size_t]
+    trim.restype = ctypes.c_int
+    return trim
+
+
+async def run_memory_hygiene(*, stop_event: asyncio.Event, interval_seconds: float = 30.0) -> None:
+    trim = _resolve_malloc_trim()
+    try:
+        while not stop_event.is_set():
+            try:
+                await asyncio.wait_for(stop_event.wait(), timeout=interval_seconds)
+            except asyncio.TimeoutError:
+                pass
+            gc.collect()
+            if trim is not None:
+                trim(0)
+    except asyncio.CancelledError:
+        pass
+
+
 def print_progress(
     *,
     elapsed_seconds: float,
@@ -4451,7 +4516,9 @@ def print_progress(
 ) -> None:
     print(flush=True)
     print(
-        f"[{format_elapsed(elapsed_seconds)}] scored union events={snapshot['union_event_count']}",
+        f"[{format_elapsed(elapsed_seconds)}] "
+        f"scored union events={snapshot['union_event_count']} "
+        f"rss={format_bytes(current_rss_bytes())}",
         flush=True,
     )
     for topology_id, row in sorted(snapshot["topologies"].items(), key=lambda item: int(item[0])):
@@ -4649,6 +4716,9 @@ async def run_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
                 connections_handle=connections_handle,
             )
         )
+        hygiene_task = asyncio.create_task(
+            run_memory_hygiene(stop_event=stop_event)
+        )
         status_log(
             f"[startup] progress reporter active; first snapshot in {config.progress_interval_seconds:.1f}s"
         )
@@ -4684,6 +4754,9 @@ async def run_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
             reporter_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await reporter_task
+            hygiene_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await hygiene_task
             record_connection_snapshots(
                 handle=connections_handle,
                 phase="final",
