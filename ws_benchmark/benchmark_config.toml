@@ -1,5 +1,5 @@
 series_id = "10684"
-duration = 300
+duration = 60
 topologies = [1, 2, 5, 10]
 warmup_seconds = 10.0
 warmup_compare_window_seconds = 10.0

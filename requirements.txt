@@ -3,3 +3,5 @@ requests==2.31.0
 websockets>=13,<16
 py-clob-client-v2==1.0.0
 python-dotenv==1.1.1
+uvloop>=0.19; sys_platform != "win32"
+orjson>=3.9

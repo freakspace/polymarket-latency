@@ -42,6 +42,43 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - older Python fallback
     tomllib = None
 
+try:
+    import orjson  # type: ignore
+
+    def _fast_loads(payload: Any) -> Any:
+        if isinstance(payload, str):
+            payload = payload.encode("utf-8")
+        return orjson.loads(payload)
+
+    def _fast_canonical_dumps(value: Any) -> bytes:
+        # orjson with SORT_KEYS produces canonical UTF-8 bytes — same dedup key
+        # as json.dumps(sort_keys=True, separators=...) but ~5× faster.
+        return orjson.dumps(value, option=orjson.OPT_SORT_KEYS)
+
+    _HAS_ORJSON = True
+except ModuleNotFoundError:
+    orjson = None  # type: ignore[assignment]
+
+    def _fast_loads(payload: Any) -> Any:
+        if isinstance(payload, (bytes, bytearray)):
+            payload = payload.decode("utf-8")
+        return json.loads(payload)
+
+    def _fast_canonical_dumps(value: Any) -> bytes:
+        return json.dumps(
+            value, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+        ).encode("utf-8")
+
+    _HAS_ORJSON = False
+
+try:
+    import uvloop  # type: ignore
+
+    _HAS_UVLOOP = True
+except ModuleNotFoundError:
+    uvloop = None  # type: ignore[assignment]
+    _HAS_UVLOOP = False
+
 DEFAULT_WS_URL = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
 GAMMA_API_BASE_URL = "https://gamma-api.polymarket.com"
 DEFAULT_CONFIG_FILENAME = "benchmark_config.toml"
@@ -944,14 +981,16 @@ def build_event_key(
         trade_id = str(raw_event.get("id") or "").strip()
         if trade_id:
             return f"{prefix}{normalized_type}:{trade_id}"
+    # Polymarket book events carry a venue-computed `hash` of the current book
+    # state. When present it's already unique per emission, so use it directly
+    # instead of re-serializing + hashing the full payload.
+    if normalized_type == "book":
+        book_hash = raw_event.get("hash")
+        if isinstance(book_hash, str) and book_hash:
+            return f"{prefix}{normalized_type}:{book_hash}"
 
-    payload = json.dumps(
-        sanitize_for_hash(raw_event),
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=True,
-    )
-    digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    payload = _fast_canonical_dumps(sanitize_for_hash(raw_event))
+    digest = hashlib.sha256(payload).hexdigest()
     return f"{prefix}{normalized_type}:{digest}"
 
 
@@ -4298,8 +4337,8 @@ async def handle_ws_frame(
         return
 
     try:
-        decoded = json.loads(raw_text)
-    except json.JSONDecodeError:
+        decoded = _fast_loads(raw_text)
+    except (json.JSONDecodeError, ValueError):
         connection_stats.malformed_messages += 1
         return
 
@@ -5163,6 +5202,26 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
 
 
 async def async_main(argv: Optional[Sequence[str]] = None) -> int:
+    loop = asyncio.get_running_loop()
+    status_log(
+        f"[perf] loop={type(loop).__module__} "
+        f"orjson={'yes' if _HAS_ORJSON else 'no'} "
+        f"uvloop={'yes' if _HAS_UVLOOP else 'no'}"
+    )
+
+    if os.environ.get("BENCHMARK_ASYNCIO_DEBUG"):
+        loop = asyncio.get_running_loop()
+        loop.set_debug(True)
+        try:
+            threshold = float(os.environ.get("BENCHMARK_SLOW_CALLBACK_MS", "100")) / 1000.0
+        except ValueError:
+            threshold = 0.1
+        loop.slow_callback_duration = threshold
+        status_log(
+            f"[debug] asyncio debug on; slow_callback_duration={threshold:.3f}s "
+            f"(warnings go to stderr)"
+        )
+
     args = parse_args(argv)
     config = BenchmarkConfig(
         market_slug=args.market,
@@ -5189,6 +5248,8 @@ async def async_main(argv: Optional[Sequence[str]] = None) -> int:
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
+    if _HAS_UVLOOP:
+        uvloop.install()
     try:
         return asyncio.run(async_main(argv))
     except KeyboardInterrupt:
