@@ -1013,6 +1013,7 @@ class PendingEventAggregate:
     first_connection_index: int
     received_by_topology: array
     received_by_connection: array
+    event_type: str = ""
 
 
 @dataclass(slots=True)
@@ -1414,6 +1415,7 @@ class ReceiverRollup:
     first_seen_wins: int = 0
     arrival_delta_ms: StreamingDistribution = field(default_factory=StreamingDistribution)
     freshness_ms: StreamingDistribution = field(default_factory=StreamingDistribution)
+    book_age_ms: StreamingDistribution = field(default_factory=StreamingDistribution)
     inter_event_gap_ms: StreamingDistribution = field(default_factory=StreamingDistribution)
     last_received_at_ns: Optional[int] = None
     longest_inter_event_gap_ms: Optional[float] = None
@@ -1426,6 +1428,7 @@ class ReceiverRollup:
         event_first_received_at_ns: int,
         venue_timestamp_ns: Optional[int],
         is_first_seen: bool,
+        event_type: str,
     ) -> None:
         self.gaps.note_seen()
         self.seen_events += 1
@@ -1435,7 +1438,14 @@ class ReceiverRollup:
             (received_at_ns - event_first_received_at_ns) / 1_000_000
         )
         if venue_timestamp_ns is not None:
-            self.freshness_ms.add((received_at_ns - venue_timestamp_ns) / 1_000_000)
+            age_ms = (received_at_ns - venue_timestamp_ns) / 1_000_000
+            # `book` events carry a "last order-book change" timestamp, not an emit
+            # timestamp, so age-since-timestamp is not a delivery-latency signal for
+            # them. Keep it separately for diagnostics; exclude from freshness_ms.
+            if event_type == "book":
+                self.book_age_ms.add(age_ms)
+            else:
+                self.freshness_ms.add(age_ms)
         if self.last_received_at_ns is not None:
             gap_ms = (received_at_ns - self.last_received_at_ns) / 1_000_000
             self.inter_event_gap_ms.add(gap_ms)
@@ -1460,6 +1470,8 @@ class ReceiverRollup:
             "arrival_delta_histogram_ms": self.arrival_delta_ms.to_histogram(),
             "freshness_ms": self.freshness_ms.to_distribution(),
             "freshness_histogram_ms": self.freshness_ms.to_histogram(),
+            "book_age_ms": self.book_age_ms.to_distribution(),
+            "book_age_histogram_ms": self.book_age_ms.to_histogram(),
             "inter_event_gap_ms": self.inter_event_gap_ms.to_distribution(),
             "longest_inter_event_gap_ms": round_or_none(self.longest_inter_event_gap_ms, 3),
             **self.gaps.to_summary(),
@@ -1543,6 +1555,7 @@ class MetricsAggregator:
                 first_connection_index=connection_idx,
                 received_by_topology=array("q", [-1] * len(self._topology_ids)),
                 received_by_connection=array("q", [-1] * len(self._connection_ids)),
+                event_type=observation.event_type,
             )
             self._pending_events[observation.event_key] = aggregate
             self._pending_order.append((aggregate.first_received_at_ns, observation.event_key))
@@ -1726,7 +1739,7 @@ class MetricsAggregator:
             },
             "caveats": [
                 "Relative loss is topology-relative within this run, not authoritative venue loss.",
-                "Freshness depends on the venue timestamp carried by each websocket event.",
+                "Freshness is measured over price_change and last_trade_price events only; book events carry a last-changed timestamp (not an emit time) and are reported separately as book_age_ms.",
                 "Warmup is applied per connection and after reconnects; those observations are recorded but excluded from scored metrics.",
                 f"Unique event aggregation uses a rolling {config.event_retention_seconds:.1f}s retention window to keep memory bounded on long runs.",
                 f"Latency/freshness percentiles and histograms are estimated from bounded reservoir samples of up to {DEFAULT_DISTRIBUTION_SAMPLE_SIZE} values per metric.",
@@ -1832,6 +1845,7 @@ class MetricsAggregator:
                     event_first_received_at_ns=aggregate.first_received_at_ns,
                     venue_timestamp_ns=aggregate.venue_timestamp_ns,
                     is_first_seen=aggregate.first_topology_index == topology_idx,
+                    event_type=aggregate.event_type,
                 )
             else:
                 rollup.note_miss(
@@ -1847,6 +1861,7 @@ class MetricsAggregator:
                     event_first_received_at_ns=aggregate.first_received_at_ns,
                     venue_timestamp_ns=aggregate.venue_timestamp_ns,
                     is_first_seen=aggregate.first_connection_index == connection_idx,
+                    event_type=aggregate.event_type,
                 )
             else:
                 rollup.note_miss(
