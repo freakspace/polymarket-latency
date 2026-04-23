@@ -1,8 +1,8 @@
 series_id = "10684"
-duration = 60
+duration = 300
 topologies = [1, 2, 5, 10]
-warmup_seconds = 10.0
-warmup_compare_window_seconds = 10.0
+warmup_seconds = 45.0                                                                                                                                                                                                                                                                  
+warmup_compare_window_seconds = 30.0
 ping_interval_seconds = 20.0
 event_retention_seconds = 15.0
 event_types = ["book", "price_change", "last_trade_price"]

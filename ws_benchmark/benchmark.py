@@ -1005,6 +1005,7 @@ class Observation:
     segment_id: str
     switch_reason: str
     phase_kind: str
+    phase_started_ns: Optional[int]
     connection_id: str
     topology_id: str
     topology_size: int
@@ -1028,6 +1029,7 @@ class Observation:
             "segment_id": self.segment_id,
             "switch_reason": self.switch_reason,
             "phase_kind": self.phase_kind,
+            "phase_started_ns": self.phase_started_ns,
             "connection_id": self.connection_id,
             "topology_id": self.topology_id,
             "topology_size": self.topology_size,
@@ -1909,6 +1911,129 @@ class MetricsAggregator:
                 )
 
 
+PHASE_TIMELINE_EDGES_SECONDS: tuple[float, ...] = (
+    0.0, 2.0, 5.0, 10.0, 15.0, 20.0, 30.0, 45.0, 60.0, 90.0, 120.0,
+)
+
+
+def _format_phase_bucket_label(lo_s: float, hi_s: Optional[float]) -> str:
+    def _fmt(value: float) -> str:
+        return f"{int(value)}s" if value == int(value) else f"{value:g}s"
+
+    if hi_s is None:
+        return f"{_fmt(lo_s)}+"
+    return f"{_fmt(lo_s)}–{_fmt(hi_s)}"
+
+
+class PhaseTimelineTracker:
+    """Buckets freshness by time-since-phase-reset per topology.
+
+    phase_started_ns is stamped each time a connection enters warmup
+    (initial connect or market rebind), so bucket 0 represents the first
+    seconds after any phase reset — regardless of whether that reset
+    was a cold subscribe or a mid-stream rebind. The resulting curve
+    shows how freshness decays as a connection settles, across all
+    such resets pooled together.
+    """
+
+    def __init__(
+        self,
+        *,
+        topology_ids: Sequence[str],
+        bucket_edges_seconds: Sequence[float] = PHASE_TIMELINE_EDGES_SECONDS,
+    ) -> None:
+        edges = tuple(float(edge) for edge in bucket_edges_seconds)
+        if len(edges) < 2 or any(
+            edges[i] >= edges[i + 1] for i in range(len(edges) - 1)
+        ):
+            raise ValueError(
+                "bucket_edges_seconds must be strictly increasing with >= 2 entries"
+            )
+        self._edges_seconds = edges
+        self._edges_ns = tuple(int(edge * 1_000_000_000) for edge in edges)
+        self._bucket_count = len(edges)
+        bounds: list[tuple[float, Optional[float]]] = []
+        for idx in range(len(edges) - 1):
+            bounds.append((edges[idx], edges[idx + 1]))
+        bounds.append((edges[-1], None))
+        self._bucket_bounds = bounds
+        self._bucket_labels = [
+            _format_phase_bucket_label(lo, hi) for lo, hi in self._bucket_bounds
+        ]
+        self._topology_ids = tuple(topology_ids)
+        self._freshness: dict[str, list[StreamingDistribution]] = {
+            topology_id: [StreamingDistribution() for _ in range(self._bucket_count)]
+            for topology_id in self._topology_ids
+        }
+        self._counts: dict[str, list[int]] = {
+            topology_id: [0] * self._bucket_count for topology_id in self._topology_ids
+        }
+        self._skipped_missing_phase = 0
+        self._skipped_missing_timestamp = 0
+        self._skipped_book_events = 0
+        self._skipped_negative_dt = 0
+
+    def _bucket_for(self, dt_ns: int) -> int:
+        for idx in range(1, len(self._edges_ns)):
+            if dt_ns < self._edges_ns[idx]:
+                return idx - 1
+        return self._bucket_count - 1
+
+    def record_observation(self, observation: "Observation") -> None:
+        if observation.phase_started_ns is None:
+            self._skipped_missing_phase += 1
+            return
+        if observation.event_type == "book":
+            self._skipped_book_events += 1
+            return
+        if observation.venue_timestamp_ns is None:
+            self._skipped_missing_timestamp += 1
+            return
+        topology_buckets = self._freshness.get(observation.topology_id)
+        if topology_buckets is None:
+            return
+        dt_ns = observation.received_at_ns - observation.phase_started_ns
+        if dt_ns < 0:
+            self._skipped_negative_dt += 1
+            return
+        bucket_idx = self._bucket_for(dt_ns)
+        freshness_ms = (
+            observation.received_at_ns - observation.venue_timestamp_ns
+        ) / 1_000_000
+        topology_buckets[bucket_idx].add(freshness_ms)
+        self._counts[observation.topology_id][bucket_idx] += 1
+
+    def build_summary(self) -> dict[str, Any]:
+        return {
+            "bucket_edges_seconds": list(self._edges_seconds),
+            "bucket_labels": list(self._bucket_labels),
+            "bucket_bounds_seconds": [
+                {"lo_seconds": lo, "hi_seconds": hi}
+                for lo, hi in self._bucket_bounds
+            ],
+            "topologies": {
+                topology_id: [
+                    {
+                        "bucket_index": idx,
+                        "bucket_label": self._bucket_labels[idx],
+                        "bucket_lo_seconds": self._bucket_bounds[idx][0],
+                        "bucket_hi_seconds": self._bucket_bounds[idx][1],
+                        "observation_count": self._counts[topology_id][idx],
+                        "freshness_ms": self._freshness[topology_id][idx].to_distribution(),
+                    }
+                    for idx in range(self._bucket_count)
+                ]
+                for topology_id in self._topology_ids
+            },
+            "skipped_observations": {
+                "missing_phase_started_ns": self._skipped_missing_phase,
+                "missing_venue_timestamp": self._skipped_missing_timestamp,
+                "book_events": self._skipped_book_events,
+                "negative_phase_delta_ns": self._skipped_negative_dt,
+            },
+        }
+
+
 @dataclass(slots=True)
 class ChartSeries:
     label: str
@@ -2193,6 +2318,135 @@ def render_grouped_bar_chart_svg(
         + "".join(grid_lines)
         + zero_line
         + "".join(bars)
+        + "</svg>"
+    )
+
+
+def render_line_chart_svg(
+    *,
+    title: str,
+    subtitle: str,
+    categories: Sequence[str],
+    series: Sequence[ChartSeries],
+    value_kind: str,
+    x_axis_label: Optional[str] = None,
+) -> str:
+    width = 960
+    height = 440
+    left = 78
+    right = 24
+    top = 118
+    bottom = 88
+    plot_width = width - left - right
+    plot_height = height - top - bottom
+
+    values = [
+        value
+        for row in series
+        for value in row.values
+        if value is not None and math.isfinite(value)
+    ]
+    if not categories or not values:
+        return (
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
+            f'viewBox="0 0 {width} {height}" role="img" aria-label="{html.escape(title)}">'
+            '<rect width="100%" height="100%" fill="#ffffff"/>'
+            f'<text x="24" y="34" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="16" font-weight="600" fill="#0f172a">{html.escape(title)}</text>'
+            f'<text x="24" y="54" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" fill="#64748b">{html.escape(subtitle or "No scored data available.")}</text>'
+            "</svg>"
+        )
+
+    raw_max = max(values)
+    raw_min = min(values)
+    y_max = max(0.0, raw_max) * 1.12 if raw_max > 0 else 0.0
+    y_min = min(0.0, raw_min) * 1.12 if raw_min < 0 else 0.0
+    if y_max <= y_min:
+        y_max = y_min + 1.0
+    span = y_max - y_min
+
+    def y_for_value(value: float) -> float:
+        return top + plot_height - ((value - y_min) / span) * plot_height
+
+    def x_for_category(index: int) -> float:
+        if len(categories) == 1:
+            return left + plot_width / 2
+        return left + (index / (len(categories) - 1)) * plot_width
+
+    grid_lines: list[str] = []
+    for step in range(6):
+        fraction = step / 5
+        value = y_min + span * (1 - fraction)
+        y = top + plot_height * fraction
+        grid_lines.append(
+            f'<line x1="{left}" y1="{y:.2f}" x2="{left + plot_width}" y2="{y:.2f}" stroke="#eef2f7" stroke-width="1"/>'
+        )
+        grid_lines.append(
+            f'<text x="{left - 10}" y="{y + 4:.2f}" text-anchor="end" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#94a3b8">{html.escape(format_metric_value(value, value_kind, compact=True))}</text>'
+        )
+
+    legend_items: list[str] = []
+    legend_x = left
+    legend_y = 92
+    for row in series:
+        legend_items.append(
+            f'<rect x="{legend_x}" y="{legend_y - 10}" width="10" height="10" rx="2" fill="{row.color}"/>'
+            f'<text x="{legend_x + 16}" y="{legend_y - 1}" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" fill="#475569">{html.escape(row.label)}</text>'
+        )
+        legend_x += max(80, len(row.label) * 9 + 36)
+
+    category_labels_svg: list[str] = []
+    for category_index, category in enumerate(categories):
+        x = x_for_category(category_index)
+        category_labels_svg.append(
+            f'<text x="{x:.2f}" y="{top + plot_height + 22:.2f}" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">{html.escape(category)}</text>'
+        )
+
+    series_svg: list[str] = []
+    for series_index, row in enumerate(series):
+        points: list[tuple[float, float, float]] = []
+        for category_index in range(len(categories)):
+            value = row.values[category_index] if category_index < len(row.values) else None
+            if value is None or not math.isfinite(value):
+                continue
+            x = x_for_category(category_index)
+            y = y_for_value(value)
+            points.append((x, y, float(value)))
+        if not points:
+            continue
+        if len(points) >= 2:
+            path = "M " + " L ".join(f"{x:.2f},{y:.2f}" for x, y, _ in points)
+            series_svg.append(
+                f'<path d="{path}" fill="none" stroke="{row.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" opacity="0.95"/>'
+            )
+        for x, y, value in points:
+            series_svg.append(
+                f'<circle cx="{x:.2f}" cy="{y:.2f}" r="3.5" fill="{row.color}" stroke="#ffffff" stroke-width="1.25"/>'
+            )
+        # Only label the peak point per series so labels don't collide.
+        peak_x, peak_y, peak_value = max(points, key=lambda pt: pt[2])
+        series_svg.append(
+            f'<text x="{peak_x:.2f}" y="{peak_y - 9:.2f}" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="11" font-weight="600" fill="{row.color}">{html.escape(format_metric_value(peak_value, value_kind, compact=True))}</text>'
+        )
+
+    x_axis_label_svg = ""
+    if x_axis_label:
+        x_axis_label_svg = (
+            f'<text x="{left + plot_width / 2:.2f}" y="{top + plot_height + 56:.2f}" text-anchor="middle" '
+            f'font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" fill="#64748b">{html.escape(x_axis_label)}</text>'
+        )
+
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}" role="img" aria-label="{html.escape(title)}">'
+        '<rect width="100%" height="100%" fill="#ffffff"/>'
+        f'<text x="24" y="36" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="16" font-weight="600" fill="#0f172a">{html.escape(title)}</text>'
+        f'<text x="24" y="58" font-family="Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" fill="#64748b">{html.escape(subtitle)}</text>'
+        + "".join(legend_items)
+        + f'<line x1="{left}" y1="{top + plot_height}" x2="{left + plot_width}" y2="{top + plot_height}" stroke="#cbd5e1" stroke-width="1"/>'
+        + f'<line x1="{left}" y1="{top}" x2="{left}" y2="{top + plot_height}" stroke="#cbd5e1" stroke-width="1"/>'
+        + "".join(grid_lines)
+        + "".join(category_labels_svg)
+        + "".join(series_svg)
+        + x_axis_label_svg
         + "</svg>"
     )
 
@@ -3132,12 +3386,13 @@ def render_report_html(
     )
 
     chart_card_specs: list[tuple[str, str, str, str]] = [
-        ("topology_performance", "Data Quality", "How coverage, first-seen wins, and relative miss change as the pool scales.", "coverage"),
-        ("topology_latency", "Latency & Freshness", "Per-topology p50/p95 — lower is better.", "latency"),
+        ("topology_performance", "Data Quality", "Coverage = % of events this pool received. First-seen = % of events this pool received before any other pool (a racing metric). Relative miss = 1 − coverage. More sockets → higher coverage and more first-seen wins.", "coverage"),
+        ("topology_latency", "Latency & Freshness", "Arrival P50/P95 (top bars) = ms behind the first-seeing topology on the same event — 0 means this pool won the race. Freshness P50/P95 (bottom bars) = ms between Polymarket's emit timestamp and this pool's receipt. P50 is the typical case, P95 is the tail.", "latency"),
         ("topology_gap_counts", "Relative Gap Counts", "Each metric scaled independently so small values stay readable.", "gap"),
         ("topology_gap_durations", "Relative Gap Durations", "How long topology-relative gaps last.", "duration"),
         ("warmup_quality", "Warmup vs Post-Warmup Freshness", "Warmup window compared against the first stable window after connect/rebind.", "warmup"),
-        ("connection_outliers", "Connection Outliers", "The 12 worst sockets by freshness P95 — shows the long tail behind pool averages.", "outliers"),
+        ("phase_freshness_timeline", "Freshness vs Time-Since-Phase-Reset", "Freshness P95 bucketed by seconds since the connection last entered warmup. Where the curve flattens tells you how long warmup should actually be.", "timeline"),
+        ("connection_outliers", "Connection Outliers", "The 12 individual sockets with the worst freshness P95, across every topology. Makes visible the long tail being hidden by pool-level aggregation — if one socket in your 10-ws pool is consistently 500ms behind, it shows up here.", "outliers"),
     ]
 
     def chart_card(name: str, heading: str, description: str) -> str:
@@ -3152,11 +3407,11 @@ def render_report_html(
 
     primary_charts_html = "".join(
         chart_card(name, heading, desc)
-        for name, heading, desc, _ in chart_card_specs[:5]
+        for name, heading, desc, _ in chart_card_specs[:6]
     )
     supporting_charts_html = "".join(
         chart_card(name, heading, desc)
-        for name, heading, desc, _ in chart_card_specs[5:]
+        for name, heading, desc, _ in chart_card_specs[6:]
     )
 
     extra_chart_names = [
@@ -3343,6 +3598,35 @@ def render_report_html(
       border-radius: 12px;
       padding: 18px 20px;
     }}
+    .glossary-list {{
+      margin: 0;
+      display: grid;
+      grid-template-columns: max-content 1fr;
+      gap: 6px 18px;
+      font-size: 13px;
+      line-height: 1.5;
+    }}
+    .glossary-list dt {{
+      font-weight: 600;
+      color: var(--text);
+      white-space: nowrap;
+      padding-top: 2px;
+    }}
+    .glossary-list dd {{
+      margin: 0;
+      color: var(--text-muted);
+    }}
+    .glossary-list code {{
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      background: rgba(148, 163, 184, 0.12);
+      padding: 1px 4px;
+      border-radius: 4px;
+    }}
+    @media (max-width: 720px) {{
+      .glossary-list {{ grid-template-columns: 1fr; gap: 2px 0; }}
+      .glossary-list dt {{ padding-top: 10px; }}
+    }}
     table {{
       width: 100%;
       border-collapse: collapse;
@@ -3441,6 +3725,40 @@ def render_report_html(
       {kpis_html}
     </section>
 
+    <section class="section glossary">
+      <div class="section-head">
+        <h2>How to read this report</h2>
+        <p>The benchmark opens every topology (1/2/5/10-ws pools) at once, on the same wall-clock window, so each metric is apples-to-apples across pool sizes.</p>
+      </div>
+      <div class="panel">
+        <dl class="glossary-list">
+          <dt>Freshness</dt>
+          <dd><strong>End-to-end latency.</strong> <code>received_at − venue_timestamp</code> on <code>price_change</code> and <code>last_trade_price</code> events only. This is the real "how stale is the data I'm acting on" number — it spans Polymarket fanout + Cloudflare + network + kernel + Python parse. Lower is better. Median (P50) is typical; P95 is the tail.</dd>
+
+          <dt>Book age</dt>
+          <dd>Same formula as freshness but for <code>book</code> events, which carry a "last book change" timestamp rather than an emit time. Tracked separately so it doesn't poison the freshness metric. High book_age just means "nothing changed in the book for a while".</dd>
+
+          <dt>Arrival delta</dt>
+          <dd><strong>Relative latency.</strong> <code>this_topology_received_at − first_topology_received_at</code> for the same event. 0 means this pool won the race; higher means it lost by that many ms. Tells you whether adding connections actually gets you faster reads — not absolute latency.</dd>
+
+          <dt>Coverage</dt>
+          <dd>Fraction of scored events this topology received at least once. 100% means no events missed.</dd>
+
+          <dt>First seen</dt>
+          <dd>Fraction of events this topology received <em>before any other topology</em>. More sockets → usually more first-seen wins.</dd>
+
+          <dt>Relative miss</dt>
+          <dd><code>1 − coverage</code>. Events the union saw that this topology never did. Topology-relative, not authoritative venue loss.</dd>
+
+          <dt>Gap runs / Largest gap</dt>
+          <dd>A gap run is a contiguous span where this topology missed events the union did see. Gap count + largest-run size tell you whether the pool is occasionally silent under bursts.</dd>
+
+          <dt>Inter-event gap P95</dt>
+          <dd>Time between successive events this topology received. A very low value (<1ms) usually signals bursty/batched delivery; a steady value (5–30ms) is natural streaming.</dd>
+        </dl>
+      </div>
+    </section>
+
     <section class="section">
       <div class="section-head">
         <h2>Headline questions</h2>
@@ -3454,7 +3772,7 @@ def render_report_html(
     <section class="section">
       <div class="section-head">
         <h2>Topology summary</h2>
-        <p>Best value in each column is highlighted.</p>
+        <p>One row per pool size. Best value in each column is highlighted. Arrival P95 and Freshness P95 are the 95th-percentile tails — see <em>How to read this report</em> above for what each column means.</p>
       </div>
       <div class="panel">
         <table>
@@ -3481,7 +3799,7 @@ def render_report_html(
     <section class="section">
       <div class="section-head">
         <h2>Warmup vs post-warmup</h2>
-        <p>Each cell compares the warmup window to the first stable window after connect/rebind. ▼ green means the metric improved.</p>
+        <p>Each connection reserves a warmup window (per <code>warmup_seconds</code>) right after it subscribes or rebinds, during which events are recorded but excluded from scored metrics. This panel compares that warmup window to the first stable window afterwards. A healthy long run has <em>warmup worse than post</em> (subscription churn is messier than steady state). If post is worse, the run likely straddled a market rebind, had backlog accumulating, or is too short for steady state to settle. ▼ green = post improved; ▲ red = post got worse.</p>
       </div>
       <div class="panel">
         <table>
@@ -3504,7 +3822,7 @@ def render_report_html(
     <section class="section">
       <div class="section-head">
         <h2>Single-socket stall evidence</h2>
-        <p>Individual sockets can stall even when the pool looks healthy — this table shows the cost behind pool-level wins.</p>
+        <p>The topology summary above uses the <em>pool-level</em> view — if any socket in a 10-ws pool received an event, it counts as "seen". This table breaks that apart to show per-socket behavior. <strong>Sockets with Gap Runs</strong> tells you how many individual sockets had at least one stall; <strong>Worst Socket Gap Events</strong> is how many events the single unluckiest socket missed during its longest stall. These numbers are the cost being absorbed by redundancy — if every individual socket stalls occasionally, adding sockets is what keeps coverage at 100%.</p>
       </div>
       <div class="panel">
         <table>
@@ -3529,7 +3847,7 @@ def render_report_html(
     <section class="section">
       <div class="section-head">
         <h2>Charts</h2>
-        <p>Each metric uses its own y-axis so small values stay readable alongside large ones.</p>
+        <p>Each chart uses its own y-axis so small values stay readable alongside large ones. The <strong>Data Quality</strong> panel shows coverage and first-seen wins by pool size. <strong>Latency & Freshness</strong> shows P50 (median, typical case) and P95 (tail) side-by-side — the P50/P95 ratio tells you how heavy the tail is. <strong>Gap counts/durations</strong> visualise where redundancy is eating stalls.</p>
       </div>
       <div class="charts">
         {primary_charts_html}
@@ -3577,7 +3895,7 @@ def build_visualization_payload(
     payload: dict[str, Any] = {
         "topology_performance": {
             "title": "Topology Performance",
-            "subtitle": "Coverage, first-seen share, and relative miss improve or regress as the websocket pool grows.",
+            "subtitle": "Coverage = % of events seen. First seen = % of events this pool saw before any other. Relative miss = 1 − coverage. Scaling up sockets should push coverage toward 100% and shift first-seen wins to the larger pools.",
             "value_kind": "percent",
             "categories": topology_labels,
             "series": [
@@ -3600,7 +3918,7 @@ def build_visualization_payload(
         },
         "topology_latency": {
             "title": "Latency and Freshness",
-            "subtitle": "Lower is better. This shows which topology gets early copies and which one drifts stale.",
+            "subtitle": "Arrival = ms behind the first-seeing topology on the same event (0 means this pool won). Freshness = ms between Polymarket's emit timestamp and receipt on this pool. P50 is typical, P95 is the tail. Lower is better on both.",
             "value_kind": "ms",
             "categories": topology_labels,
             "series": [
@@ -3628,7 +3946,7 @@ def build_visualization_payload(
         },
         "topology_gap_counts": {
             "title": "Relative Gap Counts",
-            "subtitle": "These are topology-relative gap runs, not authoritative venue loss.",
+            "subtitle": "Gap runs = contiguous spans this topology missed while the union was still seeing events. Largest gap events = longest such span. Relative loss events = total events missed by this topology across the run. These are within-run relative numbers, not authoritative venue loss.",
             "value_kind": "count",
             "categories": topology_labels,
             "series": [
@@ -3651,7 +3969,7 @@ def build_visualization_payload(
         },
         "topology_gap_durations": {
             "title": "Relative Gap Durations",
-            "subtitle": "Longer runs mean the topology went absent while other sockets were still seeing events.",
+            "subtitle": "Largest gap = the longest single silence this topology experienced. Gap duration P95 = 95th-percentile silence length. Inter-event gap P95 = time between consecutive events received — a very low value (<1ms) usually means delivery is bursty/batched; 5–30ms means natural streaming.",
             "value_kind": "ms",
             "categories": topology_labels,
             "series": [
@@ -3674,7 +3992,7 @@ def build_visualization_payload(
         },
         "warmup_quality": {
             "title": "Warmup Quality Check",
-            "subtitle": "Compare warmup against the first stable window after each connect or market rebind.",
+            "subtitle": "Warmup freshness P95 (first window after connect/rebind) vs post-warmup freshness P95 (first stable window). On a healthy long run, warmup is noisier than post (subscription churn, backlog). If post is consistently worse, the run is too short, straddles a rebind, or the process is falling behind.",
             "value_kind": "ms",
             "categories": topology_labels,
             "series": [
@@ -3706,6 +4024,55 @@ def build_visualization_payload(
         },
     }
 
+    phase_timeline = summary.get("phase_timeline") or {}
+    phase_timeline_topologies = phase_timeline.get("topologies") or {}
+    bucket_labels_all = phase_timeline.get("bucket_labels") or []
+
+    def _bucket_freshness_p95(topology_id: str, bucket_idx: int) -> Optional[float]:
+        buckets = phase_timeline_topologies.get(topology_id) or []
+        if bucket_idx >= len(buckets):
+            return None
+        return metric_from_distribution(
+            buckets[bucket_idx].get("freshness_ms", {}), "p95"
+        )
+
+    def _bucket_has_any_data(bucket_idx: int) -> bool:
+        for topology_id in topology_ids:
+            buckets = phase_timeline_topologies.get(topology_id) or []
+            if bucket_idx >= len(buckets):
+                continue
+            if (buckets[bucket_idx].get("observation_count") or 0) > 0:
+                return True
+        return False
+
+    kept_bucket_indices = [
+        idx for idx in range(len(bucket_labels_all)) if _bucket_has_any_data(idx)
+    ]
+    phase_timeline_categories = [bucket_labels_all[idx] for idx in kept_bucket_indices]
+    phase_timeline_series: list[dict[str, Any]] = []
+    for topology_idx, topology_id in enumerate(topology_ids):
+        phase_timeline_series.append(
+            {
+                "label": f"{topology_id} ws",
+                "color": CHART_COLORS[topology_idx % len(CHART_COLORS)],
+                "values": [
+                    _bucket_freshness_p95(topology_id, bucket_idx)
+                    for bucket_idx in kept_bucket_indices
+                ],
+            }
+        )
+    payload["phase_freshness_timeline"] = {
+        "title": "Freshness vs. Time-Since-Phase-Reset",
+        "subtitle": (
+            "Freshness P95 bucketed by how long since each connection last entered warmup "
+            "(initial connect or market rebind). Shows where the catch-up tail actually ends: "
+            "if freshness is still falling at the right edge, the warmup window is too short."
+        ),
+        "value_kind": "ms",
+        "categories": phase_timeline_categories,
+        "series": phase_timeline_series,
+    }
+
     sorted_connections = sorted(
         summary["connections"].items(),
         key=lambda item: (
@@ -3716,7 +4083,7 @@ def build_visualization_payload(
     )[:12]
     payload["connection_outliers"] = {
         "title": "Connection Outliers",
-        "subtitle": "Worst 12 connections by freshness P95, with arrival P95 as a tie-breaker view.",
+        "subtitle": "The 12 individual sockets with the worst freshness P95 (primary) and arrival P95 (secondary). These are the per-socket tails being absorbed by pool-level redundancy; if one connection is consistently slow it shows up here.",
         "value_kind": "ms",
         "categories": [
             short_connection_label(connection_id) for connection_id, _ in sorted_connections
@@ -3766,7 +4133,7 @@ def build_visualization_payload(
         connection_order = list(visualization_state["connection_order"])
         payload["connection_event_timeline"] = {
             "title": "Per-Connection Event Timeline",
-            "subtitle": "Each row is one websocket. Colored cells mean events arrived in that time bucket; white space means silence. Dashed lines mark market rebinds.",
+            "subtitle": "Each row is one websocket connection. Colored cells = events arrived in that time bucket; white space = silence. Dashed vertical lines mark market rebinds. Use this to spot sockets that went silent for long stretches while peers stayed active.",
             "duration_seconds": round(float(visualization_state["duration_seconds"]), 3),
             "bucket_count": int(visualization_state["bucket_count"]),
             "bucket_span_seconds": round(
@@ -3798,7 +4165,7 @@ def build_visualization_payload(
         )
         payload["topology_gap_timeline"] = {
             "title": "Topology Gap Timeline",
-            "subtitle": "Each bar marks a run where that topology missed events that other topologies did see.",
+            "subtitle": "Each bar marks a contiguous gap run where that topology missed events the union did see. Bar length = wall-clock duration of the gap. A large pool with no bars means its redundancy was enough to catch everything.",
             "duration_seconds": round(float(visualization_state["duration_seconds"]), 3),
             "topology_rows": [
                 {"topology_id": topology_id, "label": f"{topology_id} ws"}
@@ -3869,6 +4236,7 @@ def write_visual_artifacts(
         "topology_gap_counts",
         "topology_gap_durations",
         "warmup_quality",
+        "phase_freshness_timeline",
         "connection_outliers",
     ):
         chart_spec = visualization_data[chart_name]
@@ -3893,6 +4261,22 @@ def write_visual_artifacts(
                 subtitle=str(chart_spec["subtitle"]),
                 categories=chart_spec["categories"],
                 metrics=metrics,
+            )
+        elif chart_name == "phase_freshness_timeline":
+            svg = render_line_chart_svg(
+                title=chart_spec["title"],
+                subtitle=chart_spec["subtitle"],
+                categories=chart_spec["categories"],
+                series=[
+                    ChartSeries(
+                        str(row["label"]),
+                        list(row["values"]),
+                        str(row["color"]),
+                    )
+                    for row in chart_spec["series"]
+                ],
+                value_kind=str(chart_spec["value_kind"]),
+                x_axis_label="Seconds since last phase reset (connect or rebind)",
             )
         else:
             svg = render_grouped_bar_chart_svg(
@@ -4384,6 +4768,7 @@ async def handle_ws_frame(
             segment_id=target.segment_id,
             switch_reason=target.switch_reason,
             phase_kind=connection_stats.phase_kind(received_at_ns),
+            phase_started_ns=connection_stats.phase_started_ns,
             connection_id=connection_stats.connection_id,
             topology_id=connection_stats.topology_id,
             topology_size=connection_stats.topology_size,
@@ -4514,6 +4899,7 @@ async def consume_observations(
     *,
     queue: asyncio.Queue[Optional[Observation]],
     aggregators: Sequence[MetricsAggregator],
+    recorders: Sequence[Any] = (),
     events_handle: Optional[Any],
     include_raw_event_payload: bool,
 ) -> None:
@@ -4523,6 +4909,8 @@ async def consume_observations(
             break
         for aggregator in aggregators:
             aggregator.record_observation(observation)
+        for recorder in recorders:
+            recorder.record_observation(observation)
         if events_handle is not None:
             write_json_line(
                 events_handle,
@@ -4741,6 +5129,9 @@ async def run_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
         scoring_filter=lambda observation: observation.phase_kind == "post_warmup_compare",
         event_retention_seconds=config.event_retention_seconds,
     )
+    phase_timeline_tracker = PhaseTimelineTracker(
+        topology_ids=[str(size) for size in config.topologies],
+    )
 
     with (
         (
@@ -4758,6 +5149,7 @@ async def run_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
             consume_observations(
                 queue=queue,
                 aggregators=(aggregator, warmup_aggregator, post_warmup_aggregator),
+                recorders=(phase_timeline_tracker,),
                 events_handle=events_handle,
                 include_raw_event_payload=config.include_raw_event_payload,
             )
@@ -4941,6 +5333,7 @@ async def run_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
         post_warmup_summary=post_warmup_summary,
         compare_window_seconds=compare_window_seconds(config),
     )
+    summary["phase_timeline"] = phase_timeline_tracker.build_summary()
 
     runtime_errors = [
         str(result)

@@ -1,95 +1,149 @@
-# Polymarket WebSocket Latency Tracker
+# Polymarket Latency Toolkit
 
-A Python tool to measure latency between Polymarket websocket events and local receipt time.
+A set of tools for measuring, benchmarking, and reasoning about Polymarket CLOB latency end-to-end: WebSocket market data, CLOB V2 order submission, and a topology-scaling benchmark with an HTML/Next.js dashboard.
 
-**Key Findings:** Testing from an NTP-synced VPS in Amsterdam shows median latency of **~40-42ms** to Polymarket's servers with network variance (std dev) of **~28-48ms**.
+## What's in here
 
-## Quick Start (TL;DR)
+| Tool | What it answers |
+|---|---|
+| `ws_benchmark/benchmark.py` | **How fast is your server receiving market data?** Compares 1/2/5/10-socket pools across the same wall-clock window and reports coverage, freshness, arrival delta, gap runs, and per-socket stall evidence. |
+| `ws_benchmark/probe_time.py` | **Is my clock aligned with Polymarket's, and is the feed healthy right now?** Compares `clob.polymarket.com/time` to local, then subscribes to one asset and prints per-30s freshness by event type. |
+| `polymarket_latency.py` | **Quick one-shot latency probe.** Connects to the market WS, collects N events, prints median/mean/p95 with optional clock-offset calibration for unsynced dev machines. |
+| `polymarket_order_burst.py` | **Do duplicate CLOB V2 orders race each other usefully?** Signs N orders with the same V2 timestamp and fires them concurrently at `/order`, reports per-request latency, which landed, and a best-of-N vs single-submit comparison. |
+| `wrap_usdce_to_pusd.py` | Helper: wrap USDC.e to pUSD on-chain for CLOB V2 balance prep. |
+| `reports/` | Next.js dashboard that renders any `summary.json` produced by `ws_benchmark` as a browseable report. |
+| `sync-clock.sh` | One-shot Ubuntu/chrony clock sync (legacy — AWS Time Sync on EC2 is usually already accurate to microseconds). |
 
-**For accurate production measurements:**
+## Layout
+
+```
+polymarket-latency/
+├── Makefile                 # primary entry points (benchmark, report, server, web, order-burst)
+├── polymarket_latency.py    # single-run WS latency probe
+├── polymarket_order_burst.py# CLOB V2 duplicate-order burst probe
+├── wrap_usdce_to_pusd.py
+├── sync-clock.sh
+├── ws_benchmark/
+│   ├── benchmark.py         # topology-scaling WS benchmark
+│   ├── probe_time.py        # /time endpoint + per-event-type freshness probe
+│   ├── html_generator.py    # renders summary.json -> report.html + SVG charts
+│   ├── benchmark_config.toml
+│   └── README.md
+├── reports/                 # Next.js report dashboard (npm)
+├── recordings/              # default output root for all run artifacts
+│   ├── ws-bench/<timestamp>/{summary.json, report.html, charts/*.svg}
+│   └── order-burst/<timestamp>/summary.json
+└── requirements.txt
+```
+
+## Quick start
+
 ```bash
-# On your VPS
-git clone <repo>
-cd poly-latency
-pip install -r requirements.txt
-sudo ./sync-clock.sh  # Answer 'y' for continuous sync
-
-# Run measurement
-python polymarket_latency.py btc-updown-15m-1769050800 500 0
-
-# Expected: Median ~40-60ms (Europe), ~10-30ms (US East)
-```
-
-**For local/WSL2 testing:**
-```bash
-# Calibration handles clock offset automatically
-python polymarket_latency.py btc-updown-15m-1769050800 100 10
-```
-
-## Project Files
-
-```
-poly-latency/
-├── polymarket_latency.py   # Main latency measurement script
-├── sync-clock.sh           # Clock synchronization script (VPS/Ubuntu)
-├── requirements.txt        # Python dependencies
-├── README.md              # Documentation
-└── .gitignore            # Git ignore rules
-```
-
-## Overview
-
-This project connects to Polymarket's market websocket, subscribes to a specific market by slug, collects a specified number of events (default: 100), and calculates latency statistics by comparing event timestamps with local receipt times.
-
-## Two Modes of Operation
-
-### Mode 1: NTP-Synced (Recommended for VPS)
-- **Use when:** Running on a VPS with NTP time synchronization
-- **Calibration:** DISABLED (`calibration_events=0`)
-- **What it measures:** True network latency from Polymarket servers to your location
-- **Typical results:** 30-100ms median latency depending on geographic location
-
-### Mode 2: Calibrated (For Local/WSL2)
-- **Use when:** Running on WSL2 or local machines without NTP sync
-- **Calibration:** ENABLED (default: 10 events)
-- **What it measures:** Network latency after removing clock offset between systems
-- **Typical results:** Small positive/negative values after offset correction
-
-## Installation
-
-1. Install dependencies:
-```bash
+python3 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## CLOB V2 Order Burst Test
+`requirements.txt` includes two optional performance packages used automatically by `ws_benchmark/benchmark.py` when present:
 
-There is also a standalone V2 order-placement probe at `polymarket_order_burst.py`. It is designed for exactly the duplicate-order question we discussed:
+- **`uvloop`** — drop-in replacement for the asyncio event loop, 2–4× throughput on socket-heavy workloads.
+- **`orjson`** — 5–10× faster JSON parse/serialize, used on the hot recv path and inside `build_event_key`.
 
-- It uses the official `py-clob-client-v2` SDK against `https://clob-v2.polymarket.com`
-- It sends separate concurrent `POST /order` calls, not the batch `/orders` endpoint
-- Inside each burst, every signed order gets the same V2 `timestamp` in milliseconds
-- It reports per-request latency, returned status/error, and how many new open orders actually appeared
-- By default it cancels the newly-created test orders after each burst
-- It writes `recordings/order-burst/<timestamp>/summary.json` by default
+Without them the benchmark falls back to stdlib — it still runs, just slower. The first line of benchmark output reports which are active:
 
-### Required env vars
+```
+[perf] loop=uvloop orjson=yes uvloop=yes
+```
 
-The script now auto-loads a local `.env` file, so you can either `export` vars in your shell or put them in `.env`.
+## The three latency metrics, and which to trust
+
+The benchmark (and the probe) report three related but distinct numbers. Mixing them up is the easiest way to misread a result.
+
+| Metric | Formula | What it means |
+|---|---|---|
+| **Freshness** | `received_at_ns − venue_timestamp_ns` | End-to-end latency from Polymarket's engine to your process. **This is "how stale is the data I'm about to act on".** Covers internal fanout + Cloudflare + network + kernel + Python parse. |
+| **Arrival delta** | `this_topology_received_at − first_topology_received_at` (same event) | Purely relative: how much later this pool saw an event vs whichever pool saw it first. Measures whether redundancy helps, not absolute latency. |
+| **Book age** | same as freshness, but for `book` events only | Polymarket's `book.timestamp` is the *last-book-change* time, not an emit time. Tracked separately as `book_age_ms` so it doesn't poison the freshness metric. |
+
+`Freshness` is computed over `price_change` and `last_trade_price` only. `book` events are excluded because mixing them silently turns the freshness tail into "how long since the last book change" rather than "how late was this message".
+
+## Running the WS benchmark
+
+```bash
+make benchmark
+# or, with overrides:
+venv/bin/python ws_benchmark/benchmark.py --duration 300
+```
+
+Configuration lives in `ws_benchmark/benchmark_config.toml`. Keys worth knowing:
+
+| Key | Meaning |
+|---|---|
+| `series_id` / `market_slug` / `token_ids` | What to subscribe to. `series_id` with automatic rebinding is recommended for rolling-window markets like `btc-updown-5m`. |
+| `duration` | Total benchmark wall-clock seconds. Scored metrics exclude warmup. |
+| `topologies` | List of pool sizes to compare, e.g. `[1, 2, 5, 10]`. The benchmark opens *all* pools concurrently on the same window. |
+| `warmup_seconds` | Per-connection warmup window; events in this window are recorded for the warmup-vs-stable comparison panel but excluded from scored metrics. |
+| `event_retention_seconds` | How long the aggregator keeps an event's aggregate around waiting for stragglers before finalizing. If your market has ≥N-second single-socket stalls, raise this to avoid backfill events being re-counted. |
+| `event_types` | Defaults to `["book", "price_change", "last_trade_price"]`. |
+
+Environment flags for diagnostics:
+
+```bash
+BENCHMARK_ASYNCIO_DEBUG=1 BENCHMARK_SLOW_CALLBACK_MS=200 make benchmark
+# Warns on stderr whenever the event loop blocks for more than 200ms.
+```
+
+## Rendering reports
+
+The run writes `recordings/ws-bench/<timestamp>/summary.json`. Render it two ways:
+
+**HTML + SVG (static, works offline)**:
+
+```bash
+make report                    # interactive picker
+make report SUMMARY=recordings/ws-bench/20260423_063906/summary.json
+make server                    # pick a run, serve report.html on :8000
+```
+
+**Next.js dashboard (interactive)**:
+
+```bash
+make web           # build + start on http://127.0.0.1:4242
+make web-dev       # HMR dev mode
+```
+
+## Running the time/freshness probe
+
+Useful as a sanity check against the benchmark, or to diagnose feed weirdness without the full benchmark load:
+
+```bash
+# Probe a specific asset (token) id:
+python3 ws_benchmark/probe_time.py --asset <token_id> --duration 300
+
+# Or resolve the current active token for a Gamma series:
+python3 ws_benchmark/probe_time.py --series 10684 --duration 300
+```
+
+Output includes:
+- `/time` delta between Polymarket's server clock and your local clock (sub-second when clocks are NTP-synced on both ends).
+- Per-30s p95 buckets of freshness by event type, to see if the feed drifts over time or stalls.
+- `GAP: Ns since last message` markers when silence exceeds 3 seconds — helps distinguish "quiet market" (gap followed by *fresh* event) from "stall then flush" (gap followed by *stale* backlog).
+
+## CLOB V2 order burst test
+
+A separate experiment in `polymarket_order_burst.py`. It signs N orders and fires them concurrently at `POST /order` on `clob-v2.polymarket.com` to measure:
+
+- Per-request latency and returned status/error
+- How many new open orders actually appeared after the burst
+- Best-of-N winner latency vs the `fanout=1` baseline — i.e. does adding duplicates actually reduce observed time-to-book?
+
+### Secrets setup
+
+Auto-loads a local `.env` if present. At minimum you need a funded EOA private key on Polygon Amoy (test) or mainnet:
 
 ```bash
 export PK=0xyour_private_key
-```
-
-Equivalent `.env`:
-
-```bash
-PK=0xyour_private_key
-```
-
-Optional if you already have them and want to reuse them:
-
-```bash
+# optional if reusing an existing API creds tuple:
 export CLOB_API_KEY=...
 export CLOB_SECRET=...
 export CLOB_PASS_PHRASE=...
@@ -97,22 +151,7 @@ export CHAIN_ID=80002
 export CLOB_API_URL=https://clob-v2.polymarket.com
 ```
 
-### Example
-
-The V2 migration guide lists this test market token on `clob-v2.polymarket.com`:
-
-```bash
-make order-burst \
-  TOKEN_ID=102936224134271070189104847090829839924697394514566827387181305960175107677216
-```
-
-That example uses the "US / Iran nuclear deal in 2027?" test market from the Polymarket V2 migration docs. The script defaults to a tiny passive BUY order, `post_only=true`, and cleanup enabled so it can measure placement behavior without intentionally crossing the spread.
-
-By default, `make order-burst` now uses `exact-duplicate` mode, which re-sends the exact same signed order N times for each fanout. To reproduce the older behavior of distinct orders sharing only the timestamp, pass `BURST_MODE=shared-timestamp`.
-
-To collect enough data for the latency question, run repeated trials and compare each repeat's fastest duplicate winner against that same repeat's `fanout=1` baseline. The script writes both the raw per-repeat results and an `aggregate_by_fanout` section into `summary.json`.
-
-Useful overrides:
+### Run
 
 ```bash
 make order-burst \
@@ -125,585 +164,61 @@ make order-burst \
   CLEANUP=1
 ```
 
-That setup answers the main question directly:
+`BURST_MODE=exact-duplicate` (default) resends the same signed payload N times. `BURST_MODE=shared-timestamp` signs N distinct orders sharing only the V2 timestamp. Writes `recordings/order-burst/<timestamp>/summary.json`.
 
-- `Winner landed` tells you whether at least one duplicate actually reached the book for that fanout.
-- `Winner latency` is the fastest successful client response seen for that repeat/fanout.
-- `Median Δ vs 1` tells you whether duplicate fanout beat the single-submit baseline.
-- `Beat 1` shows how often that fanout was faster than `fanout=1` across all repeats.
+## Clock sync — what you actually need
 
-## Clock Synchronization (VPS/Ubuntu)
+The legacy `sync-clock.sh` was written for VPS hosts that had drifted clocks. On modern EC2 instances, AWS's local PTP/chrony feed (`169.254.169.123`) keeps you within microseconds out of the box — `chronyc tracking` on a fresh Ubuntu 22.04 AMI typically shows `System time : 0.000001s slow of NTP time`. You don't need to run anything.
 
-For accurate latency measurements on a VPS, synchronize your system clock with NTP servers:
-
-### One-Time Setup
+Verify:
 
 ```bash
-# Make the sync script executable
-chmod +x sync-clock.sh
-
-# Run the sync script (requires sudo)
-sudo ./sync-clock.sh
+timedatectl status                    # look for "System clock synchronized: yes"
+chronyc tracking 2>/dev/null | head   # microsecond offsets expected
+date -u; curl -sI https://ws-subscriptions-clob.polymarket.com/ | grep -i '^date'
+# The two Date values should be within 1s of each other.
 ```
 
-The script will:
-- Install `ntpdate` if needed
-- Sync your clock with NTP servers
-- Optionally enable continuous time synchronization
-- Show before/after time status
+`polymarket_latency.py` still supports a calibration mode (`calibration_events > 0`) for WSL/unsynced dev laptops, but for VPS measurements leave it at 0.
 
-### Before Each Measurement Session
+## Observed numbers (for reference, not promises)
 
-If you didn't enable continuous sync:
-```bash
-sudo ./sync-clock.sh
-python polymarket_latency.py <market-slug> 100
-```
+Two reference points from testing against `btc-updown-5m` (series `10684`), 60-second runs with full 1/2/5/10 topology sweep:
 
-### Verify Clock Sync Status
+**EC2 `c7a.large` in `eu-west-1` (Dublin), 0.88ms ping to Cloudflare DUB**
 
-```bash
-timedatectl status
-```
+| Topology | Coverage | Freshness P50 | Freshness P95 | Arrival P95 |
+|----------|---------:|--------------:|--------------:|------------:|
+| 1 ws     | 100%     | 10.2 ms       | 129.7 ms      | 26.8 ms     |
+| 2 ws     | 100%     |  9.6 ms       | 124.8 ms      | 26.2 ms     |
+| 5 ws     | 100%     |  9.0 ms       |  99.0 ms      |  4.9 ms     |
+| 10 ws    | 100%     |  **8.4 ms**   |  **95.9 ms**  | **0.5 ms**  |
 
-Look for `System clock synchronized: yes`
+**Local macOS (residential wifi, thousands of km away)**
 
-## Usage
+| Topology | Coverage | Freshness P50 | Freshness P95 | Arrival P95 |
+|----------|---------:|--------------:|--------------:|------------:|
+| 1 ws     | 100%     | 54.7 ms       | 161.4 ms      | 37.4 ms     |
+| 10 ws    | 99.9%    | 51.0 ms       | 123.7 ms      |  1.5 ms     |
 
-```bash
-python polymarket_latency.py <market-slug> [num_events] [calibration_events]
-```
+The server's P50 (8–10 ms) is genuinely "as fast as physics allows" from that location: 0.88 ms × 2 of network + Polymarket/Cloudflare internal fanout. More sockets buy a tighter P95 tail (fewer single-socket stalls), not a lower median.
 
-### Arguments
+## Troubleshooting — if your benchmark looks broken
 
-- `market-slug` (required): The Polymarket market slug (e.g., "btc-updown-15m-1769050800")
-- `num_events` (optional): Number of events to collect before closing (default: 100)
-- `calibration_events` (optional): Number of initial events to use for clock offset calibration (default: 10)
-- `--verbose, -v` (optional): Show detailed output for each event including timestamp gaps
+A short decision tree that maps to what we've seen:
 
-### Examples
+1. **Freshness P95 in the *seconds*** → almost never network. Check, in order:
+   - `ws_benchmark/probe_time.py --series <id> --duration 300` should show `price_change` p95 in the tens of ms. If probe is clean but benchmark is not, it's **CPU saturation** — the Python event loop is falling behind the event rate and `recv()` is returning frames the kernel got seconds ago.
+   - `top` the benchmark process. If Python is pegged at ~100% of one vCPU for minutes, the single-core is your ceiling. Install `orjson` + `uvloop` (already in `requirements.txt`) and watch the first-line `[perf]` confirmation. On a burstable `t3.micro` this is typical once CPU credits deplete.
+2. **Freshness grows with `--duration`** → backlog accumulating, same root cause as above.
+3. **P50 is clean but P95 is multi-second** → brief bursts still overwhelm one vCPU. Upgrade to a non-burstable instance (`c7a.large` is $0.11/hr on-demand in eu-west-1 and sufficient).
+4. **Freshness is ~20s even with `book` excluded** → you have socket stalls longer than `event_retention_seconds` (default 15 s). Backfill events land in new aggregates with old timestamps. Raise retention above your observed max single-socket stall, or fix the upstream stall.
+5. **Uniform ~20s freshness across all topologies** → previously this was caused by `book` events contaminating the distribution. Confirm the run used the current code (caveats in `summary.json` should mention "book events carry a last-changed timestamp ... reported separately as book_age_ms").
 
-**VPS with NTP sync (calibration disabled):**
-```bash
-python polymarket_latency.py btc-updown-15m-1769050800 500 0
-```
+## References
 
-**Local machine / WSL2 (calibration enabled):**
-```bash
-python polymarket_latency.py btc-updown-15m-1769050800 100 10
-```
-
-**Quick test with defaults (100 events, 10 calibration events):**
-```bash
-python polymarket_latency.py will-bitcoin-hit-100k-in-2024
-```
-
-**Verbose mode to diagnose batching/queueing:**
-```bash
-python polymarket_latency.py btc-updown-15m-1769050800 100 0 --verbose
-# Shows each event with timestamp gaps to detect batching
-```
-
-## How It Works
-
-1. **Fetch Market Info**: Queries Polymarket's REST API to get token IDs for the specified market slug
-2. **WebSocket Connection**: Connects to `wss://ws-subscriptions-clob.polymarket.com/ws/market`
-3. **Subscribe**: Sends subscription message with the market's token IDs
-4. **Clock Offset Calibration**: Uses the first N events (default: 10) to estimate the clock offset between your system and Polymarket's servers
-5. **Collect Events**: For each event received:
-   - Records the event's timestamp (from Polymarket)
-   - Records local receipt time
-   - Calculates raw latency = local_time - event_timestamp
-   - After calibration: applies offset correction for adjusted latency
-6. **Calculate Statistics**: After collecting the specified number of events, displays:
-   - Raw measurements (with clock offset)
-   - Adjusted measurements (clock offset removed)
-   - Median, mean, min, max latency
-   - Standard deviation
-   - Percentiles (25th, 75th, 95th, 99th)
-
-## Output Examples
-
-### Mode 1: NTP-Synced VPS (No Calibration)
-
-```bash
-$ python polymarket_latency.py btc-updown-15m-1769050800 500 0
-```
-
-```
-Fetching market info for slug: btc-updown-15m-1769050800
-Market: Bitcoin Up or Down - January 21, 10:00PM-10:15PM ET
-Token IDs: ['54680...', '62534...']
-
-Connecting to WebSocket...
-Collecting 500 events...
-
-First event received! Type: price_change
-  Raw latency: 42.93ms
-  Clock calibration DISABLED - using raw measurements only
-
-Received 10/500 events | Type: price_change | Raw latency: 38.45ms
-Received 20/500 events | Type: price_change | Raw latency: 45.32ms
-...
-
-============================================================
-LATENCY STATISTICS
-============================================================
-
-LATENCY MEASUREMENTS (NTP-synced, no calibration):
-  Total events: 500
-  Median latency: 42.32ms
-  Mean latency: 46.01ms
-  Min latency: 9.69ms
-  Max latency: 132.23ms
-  Std deviation: 28.13ms
-
-  Percentiles:
-    25th: 27.15ms
-    75th: 58.92ms
-    95th: 95.44ms
-    99th: 118.32ms
-
-  Interpretation:
-    Median latency of 42.32ms represents the typical time
-    from when Polymarket creates an event to when you receive it.
-    Std deviation of 28.13ms shows network variability.
-============================================================
-```
-
-**What this means:**
-- Events take **~42ms** to reach you from Polymarket (median)
-- Network variance causes **±28ms** of jitter
-- 95% of events arrive within **95ms**
-- From a VPS in Amsterdam to Polymarket servers
-
-### Mode 2: Local/WSL2 with Calibration
-
-```bash
-$ python polymarket_latency.py btc-updown-15m-1769050800 100 10
-```
-
-```
-First event received! Type: price_change
-  Raw latency: -961.23ms
-  Calibrating clock offset using first 10 events...
-
-✓ Calibration complete!
-  Estimated clock offset: -961.02ms
-  Collecting remaining events with offset correction...
-
-Received 20/100 events | Type: price_change | Adjusted latency: 12.45ms
-...
-
-============================================================
-LATENCY STATISTICS
-============================================================
-
-RAW MEASUREMENTS (before calibration):
-  Total events: 100
-  Median: -961.02ms  ← Clock was 961ms behind
-  Mean: -955.18ms
-  Std deviation: 28.50ms
-
-────────────────────────────────────────────────────────────
-ADJUSTED MEASUREMENTS (clock offset removed):
-  Clock offset applied: -961.02ms
-  Events used: 90 (after calibration)
-
-  Median latency: 13.25ms
-  Mean latency: 14.12ms
-  Std deviation: 28.45ms
-
-  Interpretation:
-    Median latency of 13.25ms represents the typical time
-    from when Polymarket creates an event to when you receive it.
-    Std deviation of 28.45ms shows network variability.
-============================================================
-```
-
-**What this means:**
-- Local clock was **961ms behind** Polymarket's clock
-- After calibration: **~13ms** estimated network latency
-- Calibration is less accurate than NTP sync (for reference only)
-
-## Actual Performance Data
-
-Based on real-world testing from an NTP-synced VPS in Amsterdam (DigitalOcean):
-
-| Metric | Value | Notes |
-|--------|-------|-------|
-| **Median Latency** | 40-42ms | Typical event delivery time |
-| **Mean Latency** | 46-57ms | Average (affected by outliers) |
-| **Std Deviation** | 28-48ms | Network jitter/variance |
-| **95th Percentile** | ~95ms | 95% of events arrive within this time |
-| **Min Latency** | 8-10ms | Best-case delivery |
-| **Max Latency** | 130-202ms | Worst-case (during high load/network issues) |
-
-**Test parameters:** 500 events per measurement, multiple markets tested
-
-### Geographic Impact
-
-Latency will vary based on your VPS location relative to Polymarket's servers:
-- **US East Coast:** ~10-30ms (closest)
-- **Europe (Amsterdam):** ~40-50ms (tested)
-- **Asia Pacific:** ~150-250ms (estimated)
-
-### Different Event Types
-
-All event types show similar latency:
-- `price_change`: Most common, ~42ms median
-- `book`: Order book updates, ~42ms median
-- `last_trade_price`: Trade executions, ~42ms median
-
-## Finding Market Slugs
-
-You can find market slugs in Polymarket URLs:
-- URL: `https://polymarket.com/event/btc-updown-15m-1769050800`
-- Slug: `btc-updown-15m-1769050800`
-
-## Quick Reference
-
-### Production VPS (Recommended - Most Accurate)
-```bash
-# ONE-TIME SETUP
-sudo ./sync-clock.sh  # Enable continuous sync when prompted
-timedatectl status    # Verify: "synchronized: yes"
-
-# ONGOING MEASUREMENTS
-python polymarket_latency.py btc-updown-15m-1769050800 500 0
-# Args: market-slug, 500 events, 0 = no calibration
-
-# EXPECTED RESULTS (Europe)
-# Median: ~40-50ms
-# Std Dev: ~25-50ms
-# All values positive
-```
-
-### Local Development / WSL2 (Less Accurate)
-```bash
-# Run with automatic clock offset calibration
-python polymarket_latency.py btc-updown-15m-1769050800 100 10
-# Args: market-slug, 100 events, 10 = calibrate with first 10
-
-# EXPECTED RESULTS
-# Raw median: may be negative (clock offset)
-# Adjusted median: ~10-50ms (estimated)
-```
-
-### Troubleshooting
-
-**Seeing negative latencies on VPS?**
-```bash
-# Check sync status
-timedatectl status  # Should show "synchronized: yes"
-
-# Check time offset
-ntpdate -q pool.ntp.org  # Should be < 0.05 seconds
-
-# Force resync
-sudo ./sync-clock.sh
-```
-
-**High latency or variance?**
-```bash
-# Test multiple times to confirm
-for i in {1..3}; do
-  python polymarket_latency.py <market-slug> 200 0
-  sleep 60
-done
-
-# If consistently high:
-# - Check VPS network quality
-# - Try different geographic region
-# - Check Polymarket status page
-```
-
-**Very high variance (std dev > 80ms)?**
-```bash
-# Run in verbose mode to see batching pattern
-python polymarket_latency.py <market-slug> 500 0 --verbose
-
-# Look for:
-# - Clusters of high latencies (200-300ms)
-# - Then clusters of low latencies (5-20ms)
-# - Large timestamp gaps between events
-# This indicates server-side batching, not network issues
-```
-
-**Getting warnings about high variance?**
-```
-⚠️  High Variance Detected:
-    Std deviation (84.35ms) is 2.5x the median.
-    This suggests server-side batching/queueing, not just network jitter.
-```
-
-This is **normal** - it means Polymarket is batching events internally. Your network is fine. The median latency is still the most reliable metric for typical delivery time.
-
-## API References
-
-- [Polymarket WebSocket Documentation](https://docs.polymarket.com/developers/CLOB/websocket/wss-overview)
-- [Market Channel Documentation](https://docs.polymarket.com/developers/CLOB/websocket/market-channel)
-- [Get Market by Slug API](https://docs.polymarket.com/api-reference/markets/get-market-by-slug)
-
-## Clock Offset Calibration
-
-The tool automatically handles clock synchronization differences between your local system and Polymarket's servers:
-
-1. **Calibration Phase**: The first 10 events (configurable) are used to estimate the clock offset
-2. **Offset Calculation**: The median latency from calibration events is used as the clock offset
-3. **Adjustment**: All subsequent measurements have the offset removed to show true network latency
-
-### Why This Matters
-
-Without clock synchronization:
-- Raw latency might be negative (your clock is behind)
-- Raw latency might be inflated (your clock is ahead)
-
-With calibration:
-- Adjusted latency shows actual message transmission time
-- Standard deviation reflects real network variability
-
-### When Calibration Is Reliable
-
-Clock offset calibration is reliable when:
-- ✓ The actual network latency is much smaller than the clock offset
-- ✓ Both clocks are stable (not drifting rapidly)
-- ✓ You collect enough calibration events (10+ recommended)
-- ✓ The measurement period is short (minutes, not hours)
-
-## Best Practices & Recommendations
-
-### ✓ Recommended: NTP-Synced VPS (Most Accurate)
-
-**When to use:**
-- Production latency monitoring
-- Trading/arbitrage systems
-- Accurate absolute measurements
-- Multi-server comparisons
-
-**Setup:**
-```bash
-# One-time: Enable NTP sync
-sudo ./sync-clock.sh
-# Answer 'y' when prompted for continuous sync
-
-# Verify sync
-timedatectl status  # Should show "synchronized: yes"
-
-# Run measurements (calibration disabled)
-python polymarket_latency.py <market-slug> 500 0
-```
-
-**Expected results:**
-- ✓ Positive latencies (30-100ms typical)
-- ✓ Median shows true network latency
-- ✓ Std deviation shows real network variance
-- ✗ Negative latencies = clock sync failed
-
-**Why this is best:**
-- Both clocks (yours and Polymarket's) synced to same NTP reference
-- No assumptions or calibration needed
-- Measurements are reproducible and comparable
-- Accurate to within ±1-50ms (NTP accuracy)
-
-### ⚠ Alternative: Calibration (Less Accurate)
-
-**When to use:**
-- WSL2/local development (clock drifts)
-- No sudo access for NTP
-- Quick one-off testing
-- Clock offset >> network latency
-
-**Setup:**
-```bash
-# Run with calibration (default)
-python polymarket_latency.py <market-slug> 100 10
-```
-
-**Limitations:**
-- ⚠ Assumes median of first N events = clock offset
-- ⚠ Only works if clock offset >> network latency
-- ⚠ Less accurate than NTP (reference only)
-- ⚠ Not suitable for sub-50ms precision
-
-**Why calibration is less reliable:**
-```
-If true latency = 40ms and clock offset = 50ms:
-  Calibration will estimate offset as ~90ms (40+50)
-  All subsequent measurements will be wrong by ~40ms
-```
-
-### 🚫 Don't Do This
-
-**DON'T use calibration with NTP sync:**
-```bash
-# WRONG - will remove real network variance
-sudo ./sync-clock.sh
-python polymarket_latency.py <market-slug> 500 10  # ✗ Don't calibrate!
-```
-
-**DON'T trust absolute values without NTP:**
-```bash
-# On local machine without NTP
-python polymarket_latency.py <market-slug> 100 0  # ✗ May show negative latencies
-```
-
-### Interpreting VPS Results (NTP-Synced)
-
-When running on an NTP-synced VPS with calibration disabled, here's what the numbers mean:
-
-**✓ Healthy Results (Clock Properly Synced):**
-```
-Median latency: 42.32ms  ← Positive value = clocks synced
-Mean latency: 46.01ms    ← Close to median = consistent
-Std deviation: 28.13ms   ← Network jitter/variance
-Min: 9.69ms              ← Best-case latency
-Max: 132.23ms            ← Worst-case (spikes)
-95th percentile: 95ms    ← 95% arrive within this time
-```
-
-**Interpretation:**
-- **Median (42ms)**: Typical time from event creation to receipt
-- **Std Dev (28ms)**: Network is variable but stable
-- **Range (9-132ms)**: Network conditions vary, but no major issues
-- **95th %ile (95ms)**: Good for SLA planning
-
-**✗ Problem Results (Clock Not Synced):**
-```
-Median latency: -51.56ms  ← NEGATIVE = CLOCK PROBLEM!
-Mean latency: -46.38ms    ← Confirms clock offset
-```
-
-**Troubleshooting negative latencies:**
-```bash
-# Check NTP sync status
-timedatectl status
-# Should show: "System clock synchronized: yes"
-
-# Query actual time difference
-ntpdate -q pool.ntp.org
-# Should show: offset < 0.05 seconds
-
-# Force resync if needed
-sudo ./sync-clock.sh
-```
-
-### What Affects Latency?
-
-Based on testing, these factors impact latency:
-
-1. **Geographic Distance** (biggest factor)
-   - Same region as Polymarket: 10-30ms
-   - Cross-Atlantic: 40-60ms
-   - Cross-Pacific: 150-250ms
-
-2. **Network Route Quality**
-   - Premium networks (AWS, GCP): Lower variance
-   - Budget VPS: Higher variance
-   - Observed: 28-48ms std deviation (normal)
-   - Observed: 80-100ms std deviation (indicates batching)
-
-3. **Server-Side Batching/Queueing** (significant impact!)
-   - **Most common cause of high variance**
-   - Events timestamped at creation but queued before sending
-   - Results in clusters of high latency (200-300ms) events
-   - Then clusters of low latency (5-20ms) events
-   - Creates bimodal distribution instead of normal distribution
-
-4. **Market Activity**
-   - Low activity: More consistent (~28ms std dev)
-   - High activity: More variance (~48-80ms std dev)
-   - Spikes during major events (100-300ms possible)
-
-5. **Event Type** (minimal impact)
-   - All types show similar latency
-   - No significant difference observed
-
-### Understanding High Variance
-
-**Normal Network Variance:**
-```
-Std dev: 25-50ms
-95th percentile: 2-3x median
-Max latency: 3-4x median
-Pattern: Random fluctuations
-```
-
-**Server-Side Batching/Queueing:**
-```
-Std dev: 80-100ms+
-95th percentile: 5-8x median
-Max latency: 10x+ median
-Pattern: Clusters of high/low latencies
-```
-
-**Example of Batching Pattern:**
-```
-Events 200-250: ALL 225-309ms (queued batch released)
-Events 260-420: ALL 4-50ms    (fresh events)
-Events 430-470: Rising 30-90ms (queue building up)
-```
-
-This is **normal Polymarket behavior**, not a network problem. Use the `--verbose` flag to see timestamp gaps and detect batching.
-
-## Key Takeaways
-
-### For Production Use
-
-1. **Use NTP-synced VPS with calibration disabled (`0`)**
-   - Most accurate and reliable measurements
-   - Reproducible across different servers
-   - No assumptions or corrections needed
-
-2. **Expect ~40-60ms median latency from Europe**
-   - Actual value depends on your location
-   - Lower from US East Coast (~10-30ms)
-   - Higher from Asia Pacific (~150-250ms)
-
-3. **Network variance is normal**
-   - Std deviation of 25-50ms is typical
-   - 95th percentile 2-3x median is expected
-   - Occasional spikes to 100-200ms during peak activity
-
-4. **Monitor continuously for changes**
-   - Run every 15-30 minutes to detect issues
-   - Compare median over time (should be stable)
-   - Alert if median increases >50% or std dev doubles
-
-### For Development/Testing
-
-1. **Calibration works for local/WSL2**
-   - Good enough for relative comparisons
-   - Don't trust absolute values
-   - Re-calibrate periodically
-
-2. **Negative raw latencies = clock offset**
-   - Normal on unsynchronized systems
-   - Calibration will correct it
-   - For accurate values, use NTP instead
-
-### Limitations
-
-1. **One-way latency assumption**
-   - Assumes Polymarket uses NTP (likely, but not guaranteed)
-   - Accuracy depends on both clocks being synced
-   - True accuracy is ±1-50ms (NTP precision)
-
-2. **Application-layer delays unknown**
-   - Measures time from event timestamp to receipt
-   - Doesn't account for Polymarket's internal delays
-   - Actual "freshness" may be slightly worse
-
-3. **Network path can change**
-   - Routing changes affect latency
-   - Measurements valid for current network conditions
-   - Monitor over time to detect changes
-
-## Technical Notes
-
-- All timestamps are in milliseconds (Unix epoch)
-- Raw latency: `local_receipt_time - event_timestamp`
-- Adjusted latency: `raw_latency - clock_offset`
-- Connection auto-closes after collecting specified events
-- Non-timestamped messages (e.g., subscription confirmations) are excluded from statistics
-- PING messages sent every 10 seconds to maintain WebSocket connection
+- [Polymarket WebSocket docs](https://docs.polymarket.com/developers/CLOB/websocket/wss-overview)
+- [Market channel docs](https://docs.polymarket.com/developers/CLOB/websocket/market-channel)
+- [`GET /time` endpoint](https://docs.polymarket.com/api-reference/data/get-server-time.md)
+- [Get market by slug](https://docs.polymarket.com/api-reference/markets/get-market-by-slug)
+- [CLOB V2 migration notes](https://docs.polymarket.com/) — see the V2 API section for the `/order` and `/orders` endpoint semantics used by `polymarket_order_burst.py`.

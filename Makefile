@@ -146,12 +146,16 @@ server:
 			exit 1; \
 		fi; \
 	fi; \
-	ip="$$(curl -fsS -m 1 -H 'X-aws-ec2-metadata-token-ttl-seconds: 60' -X PUT http://169.254.169.254/latest/api/token 2>/dev/null \
-		| { read -r token; [[ -n "$$token" ]] && curl -fsS -m 1 -H "X-aws-ec2-metadata-token: $$token" http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null; } \
-		|| curl -fsS -m 2 https://api.ipify.org 2>/dev/null \
-		|| curl -fsS -m 2 https://ifconfig.me 2>/dev/null \
-		|| hostname -I 2>/dev/null | awk '{print $$1}' \
-		|| echo "$$host")"; \
+	if [[ -n "$${URL_HOST:-}" ]]; then \
+		ip="$$URL_HOST"; \
+	else \
+		ip="$$(curl -fsS -m 1 -H 'X-aws-ec2-metadata-token-ttl-seconds: 60' -X PUT http://169.254.169.254/latest/api/token 2>/dev/null \
+			| { read -r token; [[ -n "$$token" ]] && curl -fsS -m 1 -H "X-aws-ec2-metadata-token: $$token" http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null; } \
+			|| curl -fsS -m 2 https://api.ipify.org 2>/dev/null \
+			|| curl -fsS -m 2 https://ifconfig.me 2>/dev/null \
+			|| hostname -I 2>/dev/null | awk '{print $$1}' \
+			|| echo "$$host")"; \
+	fi; \
 	[[ -z "$$ip" ]] && ip="$$host"; \
 	echo ""; \
 	echo "[make] serving $$run_dir"; \
