@@ -1,0 +1,1742 @@
+{
+  "aggregate_by_fanout": [
+    {
+      "beat_repeat_baseline_count": 0,
+      "beat_repeat_baseline_rate": 0.0,
+      "client_success_rate": 1.0,
+      "client_success_repeat_count": 2,
+      "comparable_repeat_count": 2,
+      "duplicate_reject_total": 0,
+      "fanout": 1,
+      "improvement_vs_repeat_baseline_ms": {
+        "max": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "sample_count": 2
+      },
+      "landed_without_success_response_count": 0,
+      "landed_without_success_response_rate": 0.0,
+      "observed_winner_latency_ms": {
+        "max": 518.077,
+        "median": 483.166,
+        "min": 448.254,
+        "sample_count": 2
+      },
+      "orders_landed_total": 2,
+      "repeat_count": 2,
+      "transport_error_total": 0,
+      "winner_landed_count": 2,
+      "winner_landed_rate": 1.0
+    },
+    {
+      "beat_repeat_baseline_count": 0,
+      "beat_repeat_baseline_rate": 0.0,
+      "client_success_rate": 1.0,
+      "client_success_repeat_count": 2,
+      "comparable_repeat_count": 2,
+      "duplicate_reject_total": 2,
+      "fanout": 2,
+      "improvement_vs_repeat_baseline_ms": {
+        "max": -65.885,
+        "median": -177.543,
+        "min": -289.201,
+        "sample_count": 2
+      },
+      "landed_without_success_response_count": 0,
+      "landed_without_success_response_rate": 0.0,
+      "observed_winner_latency_ms": {
+        "max": 807.278,
+        "median": 660.708,
+        "min": 514.139,
+        "sample_count": 2
+      },
+      "orders_landed_total": 2,
+      "repeat_count": 2,
+      "transport_error_total": 0,
+      "winner_landed_count": 2,
+      "winner_landed_rate": 1.0
+    },
+    {
+      "beat_repeat_baseline_count": 0,
+      "beat_repeat_baseline_rate": 0.0,
+      "client_success_rate": 1.0,
+      "client_success_repeat_count": 2,
+      "comparable_repeat_count": 2,
+      "duplicate_reject_total": 8,
+      "fanout": 5,
+      "improvement_vs_repeat_baseline_ms": {
+        "max": -5.037,
+        "median": -46.447,
+        "min": -87.856,
+        "sample_count": 2
+      },
+      "landed_without_success_response_count": 0,
+      "landed_without_success_response_rate": 0.0,
+      "observed_winner_latency_ms": {
+        "max": 536.11,
+        "median": 529.612,
+        "min": 523.114,
+        "sample_count": 2
+      },
+      "orders_landed_total": 2,
+      "repeat_count": 2,
+      "transport_error_total": 0,
+      "winner_landed_count": 2,
+      "winner_landed_rate": 1.0
+    },
+    {
+      "beat_repeat_baseline_count": 0,
+      "beat_repeat_baseline_rate": 0.0,
+      "client_success_rate": 0.5,
+      "client_success_repeat_count": 1,
+      "comparable_repeat_count": 1,
+      "duplicate_reject_total": 12,
+      "fanout": 10,
+      "improvement_vs_repeat_baseline_ms": {
+        "max": -2.779,
+        "median": -2.779,
+        "min": -2.779,
+        "sample_count": 1
+      },
+      "landed_without_success_response_count": 1,
+      "landed_without_success_response_rate": 0.5,
+      "observed_winner_latency_ms": {
+        "max": 520.856,
+        "median": 520.856,
+        "min": 520.856,
+        "sample_count": 1
+      },
+      "orders_landed_total": 2,
+      "repeat_count": 2,
+      "transport_error_total": 7,
+      "winner_landed_count": 2,
+      "winner_landed_rate": 1.0
+    }
+  ],
+  "balance_allowance_preflight": {
+    "collateral": {
+      "allowances": {
+        "0xE111180000d2663C0091e4f400237545B87B996B": "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+        "0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296": "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+        "0xe2222d279d744050d28e00520010520000310F59": "115792089237316195423570985008687907853269984665640564039457584007913129639935"
+      },
+      "balance": "1604393"
+    }
+  },
+  "burst_mode": "exact-duplicate",
+  "chain_id": 137,
+  "cleanup": true,
+  "counts": [
+    1,
+    2,
+    5,
+    10
+  ],
+  "host": "https://clob-v2.polymarket.com",
+  "post_only": true,
+  "price": "0.01",
+  "repeat_runs": [
+    {
+      "baseline_fastest_success_ms": 518.077,
+      "repeat_index": 1,
+      "results": [
+        {
+          "burst_mode": "exact-duplicate",
+          "cleanup_result": {
+            "response": {
+              "canceled": [
+                "0x5a6a37b613f3f9b824003d3a1ae88279f7915115a2de31fedf0e1722bffb6770"
+              ],
+              "not_canceled": {}
+            },
+            "success": true
+          },
+          "client_success_count": 1,
+          "duplicate_reject_count": 0,
+          "fanout": 1,
+          "landed_without_success_response": false,
+          "new_open_order_count": 1,
+          "new_open_order_ids": [
+            "0x5a6a37b613f3f9b824003d3a1ae88279f7915115a2de31fedf0e1722bffb6770"
+          ],
+          "new_open_orders": [
+            {
+              "asset_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216",
+              "associate_trades": [],
+              "created_at": 1776848933,
+              "expiration": "0",
+              "id": "0x5a6a37b613f3f9b824003d3a1ae88279f7915115a2de31fedf0e1722bffb6770",
+              "maker_address": "0xEB6450dFa11842B5b5ddd392e1C96e5CA187B38E",
+              "market": "0x182390641d3b1b47cc64274b9da290efd04221c586651ba190880713da6347d9",
+              "order_type": "GTC",
+              "original_size": "5",
+              "outcome": "Yes",
+              "owner": "daa8241e-f590-fb61-309a-76e0ee39a51f",
+              "price": "0.01",
+              "side": "BUY",
+              "size_matched": "0",
+              "status": "LIVE"
+            }
+          ],
+          "requests": [
+            {
+              "error": "",
+              "index": 1,
+              "kind": "success",
+              "latency_ms": 518.077,
+              "order_id": "0x5a6a37b613f3f9b824003d3a1ae88279f7915115a2de31fedf0e1722bffb6770",
+              "response": {
+                "errorMsg": "",
+                "makingAmount": "",
+                "orderID": "0x5a6a37b613f3f9b824003d3a1ae88279f7915115a2de31fedf0e1722bffb6770",
+                "status": "live",
+                "success": true,
+                "takingAmount": ""
+              },
+              "salt": "1472675286450",
+              "status": "live",
+              "success": true,
+              "timestamp_ms": 1776848931839
+            }
+          ],
+          "shared_timestamp_ms": 1776848931839,
+          "summary": {
+            "fastest_success_ms": 518.077,
+            "latency_ms": {
+              "max": 518.077,
+              "median": 518.077,
+              "min": 518.077
+            },
+            "request_counts": {
+              "success": 1
+            }
+          },
+          "transport_error_count": 0,
+          "unique_salt_count": 1,
+          "unique_salts": [
+            "1472675286450"
+          ],
+          "unique_timestamp_count": 1,
+          "unique_timestamps": [
+            1776848931839
+          ],
+          "winner_landed": true
+        },
+        {
+          "burst_mode": "exact-duplicate",
+          "cleanup_result": {
+            "response": {
+              "canceled": [
+                "0xfa685accafa56bd43717bed9e637b47dc2f64b546f7399de4b2ca8f8a48d7e2c"
+              ],
+              "not_canceled": {}
+            },
+            "success": true
+          },
+          "client_success_count": 1,
+          "duplicate_reject_count": 1,
+          "fanout": 2,
+          "landed_without_success_response": false,
+          "new_open_order_count": 1,
+          "new_open_order_ids": [
+            "0xfa685accafa56bd43717bed9e637b47dc2f64b546f7399de4b2ca8f8a48d7e2c"
+          ],
+          "new_open_orders": [
+            {
+              "asset_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216",
+              "associate_trades": [],
+              "created_at": 1776848936,
+              "expiration": "0",
+              "id": "0xfa685accafa56bd43717bed9e637b47dc2f64b546f7399de4b2ca8f8a48d7e2c",
+              "maker_address": "0xEB6450dFa11842B5b5ddd392e1C96e5CA187B38E",
+              "market": "0x182390641d3b1b47cc64274b9da290efd04221c586651ba190880713da6347d9",
+              "order_type": "GTC",
+              "original_size": "5",
+              "outcome": "Yes",
+              "owner": "daa8241e-f590-fb61-309a-76e0ee39a51f",
+              "price": "0.01",
+              "side": "BUY",
+              "size_matched": "0",
+              "status": "LIVE"
+            }
+          ],
+          "requests": [
+            {
+              "error": "",
+              "index": 1,
+              "kind": "success",
+              "latency_ms": 807.278,
+              "order_id": "0xfa685accafa56bd43717bed9e637b47dc2f64b546f7399de4b2ca8f8a48d7e2c",
+              "response": {
+                "errorMsg": "",
+                "makingAmount": "",
+                "orderID": "0xfa685accafa56bd43717bed9e637b47dc2f64b546f7399de4b2ca8f8a48d7e2c",
+                "status": "live",
+                "success": true,
+                "takingAmount": ""
+              },
+              "salt": "350595675869",
+              "status": "live",
+              "success": true,
+              "timestamp_ms": 1776848935515
+            },
+            {
+              "error": "PolyApiException[status_code=400, error_message={'error': 'order 0xfa685accafa56bd43717bed9e637b47dc2f64b546f7399de4b2ca8f8a48d7e2c is invalid. Duplicated.'}]",
+              "exception_type": "PolyApiException",
+              "index": 2,
+              "kind": "duplicate",
+              "latency_ms": 805.844,
+              "response": {
+                "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0xfa685accafa56bd43717bed9e637b47dc2f64b546f7399de4b2ca8f8a48d7e2c is invalid. Duplicated.'}]"
+              },
+              "salt": "350595675869",
+              "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0xfa685accafa56bd43717bed9e637b47dc2f64b546f7399de4b2ca8f8a48d7e2c is invalid. Duplicated.\"}",
+              "success": false,
+              "timestamp_ms": 1776848935515
+            }
+          ],
+          "shared_timestamp_ms": 1776848935515,
+          "summary": {
+            "fastest_success_ms": 807.278,
+            "latency_ms": {
+              "max": 807.278,
+              "median": 806.561,
+              "min": 805.844
+            },
+            "request_counts": {
+              "duplicate": 1,
+              "success": 1
+            }
+          },
+          "transport_error_count": 0,
+          "unique_salt_count": 1,
+          "unique_salts": [
+            "350595675869"
+          ],
+          "unique_timestamp_count": 1,
+          "unique_timestamps": [
+            1776848935515
+          ],
+          "winner_landed": true
+        },
+        {
+          "burst_mode": "exact-duplicate",
+          "cleanup_result": {
+            "response": {
+              "canceled": [
+                "0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc"
+              ],
+              "not_canceled": {}
+            },
+            "success": true
+          },
+          "client_success_count": 1,
+          "duplicate_reject_count": 4,
+          "fanout": 5,
+          "landed_without_success_response": false,
+          "new_open_order_count": 1,
+          "new_open_order_ids": [
+            "0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc"
+          ],
+          "new_open_orders": [
+            {
+              "asset_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216",
+              "associate_trades": [],
+              "created_at": 1776848939,
+              "expiration": "0",
+              "id": "0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc",
+              "maker_address": "0xEB6450dFa11842B5b5ddd392e1C96e5CA187B38E",
+              "market": "0x182390641d3b1b47cc64274b9da290efd04221c586651ba190880713da6347d9",
+              "order_type": "GTC",
+              "original_size": "5",
+              "outcome": "Yes",
+              "owner": "daa8241e-f590-fb61-309a-76e0ee39a51f",
+              "price": "0.01",
+              "side": "BUY",
+              "size_matched": "0",
+              "status": "LIVE"
+            }
+          ],
+          "requests": [
+            {
+              "error": "",
+              "index": 1,
+              "kind": "success",
+              "latency_ms": 523.114,
+              "order_id": "0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc",
+              "response": {
+                "errorMsg": "",
+                "makingAmount": "",
+                "orderID": "0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc",
+                "status": "live",
+                "success": true,
+                "takingAmount": ""
+              },
+              "salt": "606902860816",
+              "status": "live",
+              "success": true,
+              "timestamp_ms": 1776848938892
+            },
+            {
+              "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc is invalid. Duplicated.'}]",
+              "exception_type": "PolyApiException",
+              "index": 2,
+              "kind": "duplicate",
+              "latency_ms": 511.836,
+              "response": {
+                "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc is invalid. Duplicated.'}]"
+              },
+              "salt": "606902860816",
+              "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc is invalid. Duplicated.\"}",
+              "success": false,
+              "timestamp_ms": 1776848938892
+            },
+            {
+              "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc is invalid. Duplicated.'}]",
+              "exception_type": "PolyApiException",
+              "index": 3,
+              "kind": "duplicate",
+              "latency_ms": 548.369,
+              "response": {
+                "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc is invalid. Duplicated.'}]"
+              },
+              "salt": "606902860816",
+              "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc is invalid. Duplicated.\"}",
+              "success": false,
+              "timestamp_ms": 1776848938892
+            },
+            {
+              "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc is invalid. Duplicated.'}]",
+              "exception_type": "PolyApiException",
+              "index": 4,
+              "kind": "duplicate",
+              "latency_ms": 547.858,
+              "response": {
+                "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc is invalid. Duplicated.'}]"
+              },
+              "salt": "606902860816",
+              "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc is invalid. Duplicated.\"}",
+              "success": false,
+              "timestamp_ms": 1776848938892
+            },
+            {
+              "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc is invalid. Duplicated.'}]",
+              "exception_type": "PolyApiException",
+              "index": 5,
+              "kind": "duplicate",
+              "latency_ms": 690.513,
+              "response": {
+                "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc is invalid. Duplicated.'}]"
+              },
+              "salt": "606902860816",
+              "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc is invalid. Duplicated.\"}",
+              "success": false,
+              "timestamp_ms": 1776848938892
+            }
+          ],
+          "shared_timestamp_ms": 1776848938892,
+          "summary": {
+            "fastest_success_ms": 523.114,
+            "latency_ms": {
+              "max": 690.513,
+              "median": 547.858,
+              "min": 511.836
+            },
+            "request_counts": {
+              "duplicate": 4,
+              "success": 1
+            }
+          },
+          "transport_error_count": 0,
+          "unique_salt_count": 1,
+          "unique_salts": [
+            "606902860816"
+          ],
+          "unique_timestamp_count": 1,
+          "unique_timestamps": [
+            1776848938892
+          ],
+          "winner_landed": true
+        },
+        {
+          "burst_mode": "exact-duplicate",
+          "cleanup_result": {
+            "response": {
+              "canceled": [
+                "0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e"
+              ],
+              "not_canceled": {}
+            },
+            "success": true
+          },
+          "client_success_count": 1,
+          "duplicate_reject_count": 9,
+          "fanout": 10,
+          "landed_without_success_response": false,
+          "new_open_order_count": 1,
+          "new_open_order_ids": [
+            "0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e"
+          ],
+          "new_open_orders": [
+            {
+              "asset_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216",
+              "associate_trades": [],
+              "created_at": 1776848943,
+              "expiration": "0",
+              "id": "0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e",
+              "maker_address": "0xEB6450dFa11842B5b5ddd392e1C96e5CA187B38E",
+              "market": "0x182390641d3b1b47cc64274b9da290efd04221c586651ba190880713da6347d9",
+              "order_type": "GTC",
+              "original_size": "5",
+              "outcome": "Yes",
+              "owner": "daa8241e-f590-fb61-309a-76e0ee39a51f",
+              "price": "0.01",
+              "side": "BUY",
+              "size_matched": "0",
+              "status": "LIVE"
+            }
+          ],
+          "requests": [
+            {
+              "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]",
+              "exception_type": "PolyApiException",
+              "index": 1,
+              "kind": "duplicate",
+              "latency_ms": 608.011,
+              "response": {
+                "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]"
+              },
+              "salt": "20229304970",
+              "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.\"}",
+              "success": false,
+              "timestamp_ms": 1776848942037
+            },
+            {
+              "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]",
+              "exception_type": "PolyApiException",
+              "index": 2,
+              "kind": "duplicate",
+              "latency_ms": 625.201,
+              "response": {
+                "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]"
+              },
+              "salt": "20229304970",
+              "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.\"}",
+              "success": false,
+              "timestamp_ms": 1776848942037
+            },
+            {
+              "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]",
+              "exception_type": "PolyApiException",
+              "index": 3,
+              "kind": "duplicate",
+              "latency_ms": 629.642,
+              "response": {
+                "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]"
+              },
+              "salt": "20229304970",
+              "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.\"}",
+              "success": false,
+              "timestamp_ms": 1776848942037
+            },
+            {
+              "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]",
+              "exception_type": "PolyApiException",
+              "index": 4,
+              "kind": "duplicate",
+              "latency_ms": 629.597,
+              "response": {
+                "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]"
+              },
+              "salt": "20229304970",
+              "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.\"}",
+              "success": false,
+              "timestamp_ms": 1776848942037
+            },
+            {
+              "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]",
+              "exception_type": "PolyApiException",
+              "index": 5,
+              "kind": "duplicate",
+              "latency_ms": 608.66,
+              "response": {
+                "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]"
+              },
+              "salt": "20229304970",
+              "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.\"}",
+              "success": false,
+              "timestamp_ms": 1776848942037
+            },
+            {
+              "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]",
+              "exception_type": "PolyApiException",
+              "index": 6,
+              "kind": "duplicate",
+              "latency_ms": 603.524,
+              "response": {
+                "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]"
+              },
+              "salt": "20229304970",
+              "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.\"}",
+              "success": false,
+              "timestamp_ms": 1776848942037
+            },
+            {
+              "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]",
+              "exception_type": "PolyApiException",
+              "index": 7,
+              "kind": "duplicate",
+              "latency_ms": 520.808,
+              "response": {
+                "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]"
+              },
+              "salt": "20229304970",
+              "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.\"}",
+              "success": false,
+              "timestamp_ms": 1776848942037
+            },
+            {
+              "error": "",
+              "index": 8,
+              "kind": "success",
+              "latency_ms": 520.856,
+              "order_id": "0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e",
+              "response": {
+                "errorMsg": "",
+                "makingAmount": "",
+                "orderID": "0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e",
+                "status": "live",
+                "success": true,
+                "takingAmount": ""
+              },
+              "salt": "20229304970",
+              "status": "live",
+              "success": true,
+              "timestamp_ms": 1776848942037
+            },
+            {
+              "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]",
+              "exception_type": "PolyApiException",
+              "index": 9,
+              "kind": "duplicate",
+              "latency_ms": 630.121,
+              "response": {
+                "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]"
+              },
+              "salt": "20229304970",
+              "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.\"}",
+              "success": false,
+              "timestamp_ms": 1776848942037
+            },
+            {
+              "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]",
+              "exception_type": "PolyApiException",
+              "index": 10,
+              "kind": "duplicate",
+              "latency_ms": 631.982,
+              "response": {
+                "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]"
+              },
+              "salt": "20229304970",
+              "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.\"}",
+              "success": false,
+              "timestamp_ms": 1776848942037
+            }
+          ],
+          "shared_timestamp_ms": 1776848942037,
+          "summary": {
+            "fastest_success_ms": 520.856,
+            "latency_ms": {
+              "max": 631.982,
+              "median": 616.93,
+              "min": 520.808
+            },
+            "request_counts": {
+              "duplicate": 9,
+              "success": 1
+            }
+          },
+          "transport_error_count": 0,
+          "unique_salt_count": 1,
+          "unique_salts": [
+            "20229304970"
+          ],
+          "unique_timestamp_count": 1,
+          "unique_timestamps": [
+            1776848942037
+          ],
+          "winner_landed": true
+        }
+      ]
+    },
+    {
+      "baseline_fastest_success_ms": 448.254,
+      "repeat_index": 2,
+      "results": [
+        {
+          "burst_mode": "exact-duplicate",
+          "cleanup_result": {
+            "response": {
+              "canceled": [
+                "0x551d7dffe290547cce9d8cbbf2fa74028fceb25268b73dd536c9a7efa9b028a0"
+              ],
+              "not_canceled": {}
+            },
+            "success": true
+          },
+          "client_success_count": 1,
+          "duplicate_reject_count": 0,
+          "fanout": 1,
+          "landed_without_success_response": false,
+          "new_open_order_count": 1,
+          "new_open_order_ids": [
+            "0x551d7dffe290547cce9d8cbbf2fa74028fceb25268b73dd536c9a7efa9b028a0"
+          ],
+          "new_open_orders": [
+            {
+              "asset_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216",
+              "associate_trades": [],
+              "created_at": 1776848945,
+              "expiration": "0",
+              "id": "0x551d7dffe290547cce9d8cbbf2fa74028fceb25268b73dd536c9a7efa9b028a0",
+              "maker_address": "0xEB6450dFa11842B5b5ddd392e1C96e5CA187B38E",
+              "market": "0x182390641d3b1b47cc64274b9da290efd04221c586651ba190880713da6347d9",
+              "order_type": "GTC",
+              "original_size": "5",
+              "outcome": "Yes",
+              "owner": "daa8241e-f590-fb61-309a-76e0ee39a51f",
+              "price": "0.01",
+              "side": "BUY",
+              "size_matched": "0",
+              "status": "LIVE"
+            }
+          ],
+          "requests": [
+            {
+              "error": "",
+              "index": 1,
+              "kind": "success",
+              "latency_ms": 448.254,
+              "order_id": "0x551d7dffe290547cce9d8cbbf2fa74028fceb25268b73dd536c9a7efa9b028a0",
+              "response": {
+                "errorMsg": "",
+                "makingAmount": "",
+                "orderID": "0x551d7dffe290547cce9d8cbbf2fa74028fceb25268b73dd536c9a7efa9b028a0",
+                "status": "live",
+                "success": true,
+                "takingAmount": ""
+              },
+              "salt": "1294798305338",
+              "status": "live",
+              "success": true,
+              "timestamp_ms": 1776848945086
+            }
+          ],
+          "shared_timestamp_ms": 1776848945086,
+          "summary": {
+            "fastest_success_ms": 448.254,
+            "latency_ms": {
+              "max": 448.254,
+              "median": 448.254,
+              "min": 448.254
+            },
+            "request_counts": {
+              "success": 1
+            }
+          },
+          "transport_error_count": 0,
+          "unique_salt_count": 1,
+          "unique_salts": [
+            "1294798305338"
+          ],
+          "unique_timestamp_count": 1,
+          "unique_timestamps": [
+            1776848945086
+          ],
+          "winner_landed": true
+        },
+        {
+          "burst_mode": "exact-duplicate",
+          "cleanup_result": {
+            "response": {
+              "canceled": [
+                "0xa1d6bd3ce3a7c0282773c98e6b63423ce2c40cbd14c0ef312b308e48db342928"
+              ],
+              "not_canceled": {}
+            },
+            "success": true
+          },
+          "client_success_count": 1,
+          "duplicate_reject_count": 1,
+          "fanout": 2,
+          "landed_without_success_response": false,
+          "new_open_order_count": 1,
+          "new_open_order_ids": [
+            "0xa1d6bd3ce3a7c0282773c98e6b63423ce2c40cbd14c0ef312b308e48db342928"
+          ],
+          "new_open_orders": [
+            {
+              "asset_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216",
+              "associate_trades": [],
+              "created_at": 1776848949,
+              "expiration": "0",
+              "id": "0xa1d6bd3ce3a7c0282773c98e6b63423ce2c40cbd14c0ef312b308e48db342928",
+              "maker_address": "0xEB6450dFa11842B5b5ddd392e1C96e5CA187B38E",
+              "market": "0x182390641d3b1b47cc64274b9da290efd04221c586651ba190880713da6347d9",
+              "order_type": "GTC",
+              "original_size": "5",
+              "outcome": "Yes",
+              "owner": "daa8241e-f590-fb61-309a-76e0ee39a51f",
+              "price": "0.01",
+              "side": "BUY",
+              "size_matched": "0",
+              "status": "LIVE"
+            }
+          ],
+          "requests": [
+            {
+              "error": "",
+              "index": 1,
+              "kind": "success",
+              "latency_ms": 514.139,
+              "order_id": "0xa1d6bd3ce3a7c0282773c98e6b63423ce2c40cbd14c0ef312b308e48db342928",
+              "response": {
+                "errorMsg": "",
+                "makingAmount": "",
+                "orderID": "0xa1d6bd3ce3a7c0282773c98e6b63423ce2c40cbd14c0ef312b308e48db342928",
+                "status": "live",
+                "success": true,
+                "takingAmount": ""
+              },
+              "salt": "681160816655",
+              "status": "live",
+              "success": true,
+              "timestamp_ms": 1776848948098
+            },
+            {
+              "error": "PolyApiException[status_code=400, error_message={'error': 'order 0xa1d6bd3ce3a7c0282773c98e6b63423ce2c40cbd14c0ef312b308e48db342928 is invalid. Duplicated.'}]",
+              "exception_type": "PolyApiException",
+              "index": 2,
+              "kind": "duplicate",
+              "latency_ms": 727.933,
+              "response": {
+                "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0xa1d6bd3ce3a7c0282773c98e6b63423ce2c40cbd14c0ef312b308e48db342928 is invalid. Duplicated.'}]"
+              },
+              "salt": "681160816655",
+              "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0xa1d6bd3ce3a7c0282773c98e6b63423ce2c40cbd14c0ef312b308e48db342928 is invalid. Duplicated.\"}",
+              "success": false,
+              "timestamp_ms": 1776848948098
+            }
+          ],
+          "shared_timestamp_ms": 1776848948098,
+          "summary": {
+            "fastest_success_ms": 514.139,
+            "latency_ms": {
+              "max": 727.933,
+              "median": 621.036,
+              "min": 514.139
+            },
+            "request_counts": {
+              "duplicate": 1,
+              "success": 1
+            }
+          },
+          "transport_error_count": 0,
+          "unique_salt_count": 1,
+          "unique_salts": [
+            "681160816655"
+          ],
+          "unique_timestamp_count": 1,
+          "unique_timestamps": [
+            1776848948098
+          ],
+          "winner_landed": true
+        },
+        {
+          "burst_mode": "exact-duplicate",
+          "cleanup_result": {
+            "response": {
+              "canceled": [
+                "0xb47b9e65661943d44f3dc84a51c6df46a752981352879fae8dbd1f25c14d3fcc"
+              ],
+              "not_canceled": {}
+            },
+            "success": true
+          },
+          "client_success_count": 1,
+          "duplicate_reject_count": 4,
+          "fanout": 5,
+          "landed_without_success_response": false,
+          "new_open_order_count": 1,
+          "new_open_order_ids": [
+            "0xb47b9e65661943d44f3dc84a51c6df46a752981352879fae8dbd1f25c14d3fcc"
+          ],
+          "new_open_orders": [
+            {
+              "asset_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216",
+              "associate_trades": [],
+              "created_at": 1776848952,
+              "expiration": "0",
+              "id": "0xb47b9e65661943d44f3dc84a51c6df46a752981352879fae8dbd1f25c14d3fcc",
+              "maker_address": "0xEB6450dFa11842B5b5ddd392e1C96e5CA187B38E",
+              "market": "0x182390641d3b1b47cc64274b9da290efd04221c586651ba190880713da6347d9",
+              "order_type": "GTC",
+              "original_size": "5",
+              "outcome": "Yes",
+              "owner": "daa8241e-f590-fb61-309a-76e0ee39a51f",
+              "price": "0.01",
+              "side": "BUY",
+              "size_matched": "0",
+              "status": "LIVE"
+            }
+          ],
+          "requests": [
+            {
+              "error": "PolyApiException[status_code=400, error_message={'error': 'order 0xb47b9e65661943d44f3dc84a51c6df46a752981352879fae8dbd1f25c14d3fcc is invalid. Duplicated.'}]",
+              "exception_type": "PolyApiException",
+              "index": 1,
+              "kind": "duplicate",
+              "latency_ms": 687.085,
+              "response": {
+                "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0xb47b9e65661943d44f3dc84a51c6df46a752981352879fae8dbd1f25c14d3fcc is invalid. Duplicated.'}]"
+              },
+              "salt": "1230127482794",
+              "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0xb47b9e65661943d44f3dc84a51c6df46a752981352879fae8dbd1f25c14d3fcc is invalid. Duplicated.\"}",
+              "success": false,
+              "timestamp_ms": 1776848951242
+            },
+            {
+              "error": "PolyApiException[status_code=400, error_message={'error': 'order 0xb47b9e65661943d44f3dc84a51c6df46a752981352879fae8dbd1f25c14d3fcc is invalid. Duplicated.'}]",
+              "exception_type": "PolyApiException",
+              "index": 2,
+              "kind": "duplicate",
+              "latency_ms": 686.058,
+              "response": {
+                "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0xb47b9e65661943d44f3dc84a51c6df46a752981352879fae8dbd1f25c14d3fcc is invalid. Duplicated.'}]"
+              },
+              "salt": "1230127482794",
+              "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0xb47b9e65661943d44f3dc84a51c6df46a752981352879fae8dbd1f25c14d3fcc is invalid. Duplicated.\"}",
+              "success": false,
+              "timestamp_ms": 1776848951242
+            },
+            {
+              "error": "",
+              "index": 3,
+              "kind": "success",
+              "latency_ms": 536.11,
+              "order_id": "0xb47b9e65661943d44f3dc84a51c6df46a752981352879fae8dbd1f25c14d3fcc",
+              "response": {
+                "errorMsg": "",
+                "makingAmount": "",
+                "orderID": "0xb47b9e65661943d44f3dc84a51c6df46a752981352879fae8dbd1f25c14d3fcc",
+                "status": "live",
+                "success": true,
+                "takingAmount": ""
+              },
+              "salt": "1230127482794",
+              "status": "live",
+              "success": true,
+              "timestamp_ms": 1776848951242
+            },
+            {
+              "error": "PolyApiException[status_code=400, error_message={'error': 'order 0xb47b9e65661943d44f3dc84a51c6df46a752981352879fae8dbd1f25c14d3fcc is invalid. Duplicated.'}]",
+              "exception_type": "PolyApiException",
+              "index": 4,
+              "kind": "duplicate",
+              "latency_ms": 538.24,
+              "response": {
+                "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0xb47b9e65661943d44f3dc84a51c6df46a752981352879fae8dbd1f25c14d3fcc is invalid. Duplicated.'}]"
+              },
+              "salt": "1230127482794",
+              "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0xb47b9e65661943d44f3dc84a51c6df46a752981352879fae8dbd1f25c14d3fcc is invalid. Duplicated.\"}",
+              "success": false,
+              "timestamp_ms": 1776848951242
+            },
+            {
+              "error": "PolyApiException[status_code=400, error_message={'error': 'order 0xb47b9e65661943d44f3dc84a51c6df46a752981352879fae8dbd1f25c14d3fcc is invalid. Duplicated.'}]",
+              "exception_type": "PolyApiException",
+              "index": 5,
+              "kind": "duplicate",
+              "latency_ms": 537.567,
+              "response": {
+                "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0xb47b9e65661943d44f3dc84a51c6df46a752981352879fae8dbd1f25c14d3fcc is invalid. Duplicated.'}]"
+              },
+              "salt": "1230127482794",
+              "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0xb47b9e65661943d44f3dc84a51c6df46a752981352879fae8dbd1f25c14d3fcc is invalid. Duplicated.\"}",
+              "success": false,
+              "timestamp_ms": 1776848951242
+            }
+          ],
+          "shared_timestamp_ms": 1776848951242,
+          "summary": {
+            "fastest_success_ms": 536.11,
+            "latency_ms": {
+              "max": 687.085,
+              "median": 538.24,
+              "min": 536.11
+            },
+            "request_counts": {
+              "duplicate": 4,
+              "success": 1
+            }
+          },
+          "transport_error_count": 0,
+          "unique_salt_count": 1,
+          "unique_salts": [
+            "1230127482794"
+          ],
+          "unique_timestamp_count": 1,
+          "unique_timestamps": [
+            1776848951242
+          ],
+          "winner_landed": true
+        },
+        {
+          "burst_mode": "exact-duplicate",
+          "cleanup_result": {
+            "response": {
+              "canceled": [
+                "0x724d5098c09f10dc18a7c14dfa52bba1c2d6adfb3c6c07c5b6a01c90b91e67d5"
+              ],
+              "not_canceled": {}
+            },
+            "success": true
+          },
+          "client_success_count": 0,
+          "duplicate_reject_count": 3,
+          "fanout": 10,
+          "landed_without_success_response": true,
+          "new_open_order_count": 1,
+          "new_open_order_ids": [
+            "0x724d5098c09f10dc18a7c14dfa52bba1c2d6adfb3c6c07c5b6a01c90b91e67d5"
+          ],
+          "new_open_orders": [
+            {
+              "asset_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216",
+              "associate_trades": [],
+              "created_at": 1776848955,
+              "expiration": "0",
+              "id": "0x724d5098c09f10dc18a7c14dfa52bba1c2d6adfb3c6c07c5b6a01c90b91e67d5",
+              "maker_address": "0xEB6450dFa11842B5b5ddd392e1C96e5CA187B38E",
+              "market": "0x182390641d3b1b47cc64274b9da290efd04221c586651ba190880713da6347d9",
+              "order_type": "GTC",
+              "original_size": "5",
+              "outcome": "Yes",
+              "owner": "daa8241e-f590-fb61-309a-76e0ee39a51f",
+              "price": "0.01",
+              "side": "BUY",
+              "size_matched": "0",
+              "status": "LIVE"
+            }
+          ],
+          "requests": [
+            {
+              "error": "PolyApiException[status_code=None, error_message=Request exception!]",
+              "exception_type": "PolyApiException",
+              "index": 1,
+              "kind": "transport_error",
+              "latency_ms": 223.723,
+              "response": {
+                "exception": "PolyApiException[status_code=None, error_message=Request exception!]"
+              },
+              "salt": "355994607879",
+              "sdk_http_errno": 35,
+              "sdk_http_error": "[py_clob_client_v2] request error: [Errno 35] Resource temporarily unavailable",
+              "success": false,
+              "timestamp_ms": 1776848954389
+            },
+            {
+              "error": "PolyApiException[status_code=None, error_message=Request exception!]",
+              "exception_type": "PolyApiException",
+              "index": 2,
+              "kind": "transport_error",
+              "latency_ms": 223.998,
+              "response": {
+                "exception": "PolyApiException[status_code=None, error_message=Request exception!]"
+              },
+              "salt": "355994607879",
+              "sdk_http_errno": 35,
+              "sdk_http_error": "[py_clob_client_v2] request error: [Errno 35] Resource temporarily unavailable",
+              "success": false,
+              "timestamp_ms": 1776848954389
+            },
+            {
+              "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x724d5098c09f10dc18a7c14dfa52bba1c2d6adfb3c6c07c5b6a01c90b91e67d5 is invalid. Duplicated.'}]",
+              "exception_type": "PolyApiException",
+              "index": 3,
+              "kind": "duplicate",
+              "latency_ms": 770.459,
+              "response": {
+                "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x724d5098c09f10dc18a7c14dfa52bba1c2d6adfb3c6c07c5b6a01c90b91e67d5 is invalid. Duplicated.'}]"
+              },
+              "salt": "355994607879",
+              "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0x724d5098c09f10dc18a7c14dfa52bba1c2d6adfb3c6c07c5b6a01c90b91e67d5 is invalid. Duplicated.\"}",
+              "success": false,
+              "timestamp_ms": 1776848954389
+            },
+            {
+              "error": "PolyApiException[status_code=None, error_message=Request exception!]",
+              "exception_type": "PolyApiException",
+              "index": 4,
+              "kind": "transport_error",
+              "latency_ms": 225.522,
+              "response": {
+                "exception": "PolyApiException[status_code=None, error_message=Request exception!]"
+              },
+              "salt": "355994607879",
+              "sdk_http_errno": 35,
+              "sdk_http_error": "[py_clob_client_v2] request error: [Errno 35] Resource temporarily unavailable",
+              "success": false,
+              "timestamp_ms": 1776848954389
+            },
+            {
+              "error": "PolyApiException[status_code=None, error_message=Request exception!]",
+              "exception_type": "PolyApiException",
+              "index": 5,
+              "kind": "transport_error",
+              "latency_ms": 222.952,
+              "response": {
+                "exception": "PolyApiException[status_code=None, error_message=Request exception!]"
+              },
+              "salt": "355994607879",
+              "sdk_http_errno": 35,
+              "sdk_http_error": "[py_clob_client_v2] request error: [Errno 35] Resource temporarily unavailable",
+              "success": false,
+              "timestamp_ms": 1776848954389
+            },
+            {
+              "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x724d5098c09f10dc18a7c14dfa52bba1c2d6adfb3c6c07c5b6a01c90b91e67d5 is invalid. Duplicated.'}]",
+              "exception_type": "PolyApiException",
+              "index": 6,
+              "kind": "duplicate",
+              "latency_ms": 764.851,
+              "response": {
+                "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x724d5098c09f10dc18a7c14dfa52bba1c2d6adfb3c6c07c5b6a01c90b91e67d5 is invalid. Duplicated.'}]"
+              },
+              "salt": "355994607879",
+              "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0x724d5098c09f10dc18a7c14dfa52bba1c2d6adfb3c6c07c5b6a01c90b91e67d5 is invalid. Duplicated.\"}",
+              "success": false,
+              "timestamp_ms": 1776848954389
+            },
+            {
+              "error": "PolyApiException[status_code=None, error_message=Request exception!]",
+              "exception_type": "PolyApiException",
+              "index": 7,
+              "kind": "transport_error",
+              "latency_ms": 225.054,
+              "response": {
+                "exception": "PolyApiException[status_code=None, error_message=Request exception!]"
+              },
+              "salt": "355994607879",
+              "sdk_http_errno": 35,
+              "sdk_http_error": "[py_clob_client_v2] request error: [Errno 35] Resource temporarily unavailable",
+              "success": false,
+              "timestamp_ms": 1776848954389
+            },
+            {
+              "error": "PolyApiException[status_code=None, error_message=Request exception!]",
+              "exception_type": "PolyApiException",
+              "index": 8,
+              "kind": "transport_error",
+              "latency_ms": 224.852,
+              "response": {
+                "exception": "PolyApiException[status_code=None, error_message=Request exception!]"
+              },
+              "salt": "355994607879",
+              "sdk_http_errno": 35,
+              "sdk_http_error": "[py_clob_client_v2] request error: [Errno 35] Resource temporarily unavailable",
+              "success": false,
+              "timestamp_ms": 1776848954389
+            },
+            {
+              "error": "PolyApiException[status_code=None, error_message=Request exception!]",
+              "exception_type": "PolyApiException",
+              "index": 9,
+              "kind": "transport_error",
+              "latency_ms": 225.806,
+              "response": {
+                "exception": "PolyApiException[status_code=None, error_message=Request exception!]"
+              },
+              "salt": "355994607879",
+              "sdk_http_errno": 35,
+              "sdk_http_error": "[py_clob_client_v2] request error: [Errno 35] Resource temporarily unavailable",
+              "success": false,
+              "timestamp_ms": 1776848954389
+            },
+            {
+              "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x724d5098c09f10dc18a7c14dfa52bba1c2d6adfb3c6c07c5b6a01c90b91e67d5 is invalid. Duplicated.'}]",
+              "exception_type": "PolyApiException",
+              "index": 10,
+              "kind": "duplicate",
+              "latency_ms": 764.141,
+              "response": {
+                "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x724d5098c09f10dc18a7c14dfa52bba1c2d6adfb3c6c07c5b6a01c90b91e67d5 is invalid. Duplicated.'}]"
+              },
+              "salt": "355994607879",
+              "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0x724d5098c09f10dc18a7c14dfa52bba1c2d6adfb3c6c07c5b6a01c90b91e67d5 is invalid. Duplicated.\"}",
+              "success": false,
+              "timestamp_ms": 1776848954389
+            }
+          ],
+          "shared_timestamp_ms": 1776848954389,
+          "summary": {
+            "fastest_success_ms": null,
+            "latency_ms": {
+              "max": 770.459,
+              "median": 225.288,
+              "min": 222.952
+            },
+            "request_counts": {
+              "duplicate": 3,
+              "transport_error": 7
+            }
+          },
+          "transport_error_count": 7,
+          "unique_salt_count": 1,
+          "unique_salts": [
+            "355994607879"
+          ],
+          "unique_timestamp_count": 1,
+          "unique_timestamps": [
+            1776848954389
+          ],
+          "winner_landed": true
+        }
+      ]
+    }
+  ],
+  "repeats": 2,
+  "resolved_chain_id": 137,
+  "results": [
+    {
+      "burst_mode": "exact-duplicate",
+      "cleanup_result": {
+        "response": {
+          "canceled": [
+            "0x5a6a37b613f3f9b824003d3a1ae88279f7915115a2de31fedf0e1722bffb6770"
+          ],
+          "not_canceled": {}
+        },
+        "success": true
+      },
+      "client_success_count": 1,
+      "duplicate_reject_count": 0,
+      "fanout": 1,
+      "landed_without_success_response": false,
+      "new_open_order_count": 1,
+      "new_open_order_ids": [
+        "0x5a6a37b613f3f9b824003d3a1ae88279f7915115a2de31fedf0e1722bffb6770"
+      ],
+      "new_open_orders": [
+        {
+          "asset_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216",
+          "associate_trades": [],
+          "created_at": 1776848933,
+          "expiration": "0",
+          "id": "0x5a6a37b613f3f9b824003d3a1ae88279f7915115a2de31fedf0e1722bffb6770",
+          "maker_address": "0xEB6450dFa11842B5b5ddd392e1C96e5CA187B38E",
+          "market": "0x182390641d3b1b47cc64274b9da290efd04221c586651ba190880713da6347d9",
+          "order_type": "GTC",
+          "original_size": "5",
+          "outcome": "Yes",
+          "owner": "daa8241e-f590-fb61-309a-76e0ee39a51f",
+          "price": "0.01",
+          "side": "BUY",
+          "size_matched": "0",
+          "status": "LIVE"
+        }
+      ],
+      "requests": [
+        {
+          "error": "",
+          "index": 1,
+          "kind": "success",
+          "latency_ms": 518.077,
+          "order_id": "0x5a6a37b613f3f9b824003d3a1ae88279f7915115a2de31fedf0e1722bffb6770",
+          "response": {
+            "errorMsg": "",
+            "makingAmount": "",
+            "orderID": "0x5a6a37b613f3f9b824003d3a1ae88279f7915115a2de31fedf0e1722bffb6770",
+            "status": "live",
+            "success": true,
+            "takingAmount": ""
+          },
+          "salt": "1472675286450",
+          "status": "live",
+          "success": true,
+          "timestamp_ms": 1776848931839
+        }
+      ],
+      "shared_timestamp_ms": 1776848931839,
+      "summary": {
+        "fastest_success_ms": 518.077,
+        "latency_ms": {
+          "max": 518.077,
+          "median": 518.077,
+          "min": 518.077
+        },
+        "request_counts": {
+          "success": 1
+        }
+      },
+      "transport_error_count": 0,
+      "unique_salt_count": 1,
+      "unique_salts": [
+        "1472675286450"
+      ],
+      "unique_timestamp_count": 1,
+      "unique_timestamps": [
+        1776848931839
+      ],
+      "winner_landed": true
+    },
+    {
+      "burst_mode": "exact-duplicate",
+      "cleanup_result": {
+        "response": {
+          "canceled": [
+            "0xfa685accafa56bd43717bed9e637b47dc2f64b546f7399de4b2ca8f8a48d7e2c"
+          ],
+          "not_canceled": {}
+        },
+        "success": true
+      },
+      "client_success_count": 1,
+      "duplicate_reject_count": 1,
+      "fanout": 2,
+      "landed_without_success_response": false,
+      "new_open_order_count": 1,
+      "new_open_order_ids": [
+        "0xfa685accafa56bd43717bed9e637b47dc2f64b546f7399de4b2ca8f8a48d7e2c"
+      ],
+      "new_open_orders": [
+        {
+          "asset_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216",
+          "associate_trades": [],
+          "created_at": 1776848936,
+          "expiration": "0",
+          "id": "0xfa685accafa56bd43717bed9e637b47dc2f64b546f7399de4b2ca8f8a48d7e2c",
+          "maker_address": "0xEB6450dFa11842B5b5ddd392e1C96e5CA187B38E",
+          "market": "0x182390641d3b1b47cc64274b9da290efd04221c586651ba190880713da6347d9",
+          "order_type": "GTC",
+          "original_size": "5",
+          "outcome": "Yes",
+          "owner": "daa8241e-f590-fb61-309a-76e0ee39a51f",
+          "price": "0.01",
+          "side": "BUY",
+          "size_matched": "0",
+          "status": "LIVE"
+        }
+      ],
+      "requests": [
+        {
+          "error": "",
+          "index": 1,
+          "kind": "success",
+          "latency_ms": 807.278,
+          "order_id": "0xfa685accafa56bd43717bed9e637b47dc2f64b546f7399de4b2ca8f8a48d7e2c",
+          "response": {
+            "errorMsg": "",
+            "makingAmount": "",
+            "orderID": "0xfa685accafa56bd43717bed9e637b47dc2f64b546f7399de4b2ca8f8a48d7e2c",
+            "status": "live",
+            "success": true,
+            "takingAmount": ""
+          },
+          "salt": "350595675869",
+          "status": "live",
+          "success": true,
+          "timestamp_ms": 1776848935515
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'order 0xfa685accafa56bd43717bed9e637b47dc2f64b546f7399de4b2ca8f8a48d7e2c is invalid. Duplicated.'}]",
+          "exception_type": "PolyApiException",
+          "index": 2,
+          "kind": "duplicate",
+          "latency_ms": 805.844,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0xfa685accafa56bd43717bed9e637b47dc2f64b546f7399de4b2ca8f8a48d7e2c is invalid. Duplicated.'}]"
+          },
+          "salt": "350595675869",
+          "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0xfa685accafa56bd43717bed9e637b47dc2f64b546f7399de4b2ca8f8a48d7e2c is invalid. Duplicated.\"}",
+          "success": false,
+          "timestamp_ms": 1776848935515
+        }
+      ],
+      "shared_timestamp_ms": 1776848935515,
+      "summary": {
+        "fastest_success_ms": 807.278,
+        "latency_ms": {
+          "max": 807.278,
+          "median": 806.561,
+          "min": 805.844
+        },
+        "request_counts": {
+          "duplicate": 1,
+          "success": 1
+        }
+      },
+      "transport_error_count": 0,
+      "unique_salt_count": 1,
+      "unique_salts": [
+        "350595675869"
+      ],
+      "unique_timestamp_count": 1,
+      "unique_timestamps": [
+        1776848935515
+      ],
+      "winner_landed": true
+    },
+    {
+      "burst_mode": "exact-duplicate",
+      "cleanup_result": {
+        "response": {
+          "canceled": [
+            "0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc"
+          ],
+          "not_canceled": {}
+        },
+        "success": true
+      },
+      "client_success_count": 1,
+      "duplicate_reject_count": 4,
+      "fanout": 5,
+      "landed_without_success_response": false,
+      "new_open_order_count": 1,
+      "new_open_order_ids": [
+        "0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc"
+      ],
+      "new_open_orders": [
+        {
+          "asset_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216",
+          "associate_trades": [],
+          "created_at": 1776848939,
+          "expiration": "0",
+          "id": "0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc",
+          "maker_address": "0xEB6450dFa11842B5b5ddd392e1C96e5CA187B38E",
+          "market": "0x182390641d3b1b47cc64274b9da290efd04221c586651ba190880713da6347d9",
+          "order_type": "GTC",
+          "original_size": "5",
+          "outcome": "Yes",
+          "owner": "daa8241e-f590-fb61-309a-76e0ee39a51f",
+          "price": "0.01",
+          "side": "BUY",
+          "size_matched": "0",
+          "status": "LIVE"
+        }
+      ],
+      "requests": [
+        {
+          "error": "",
+          "index": 1,
+          "kind": "success",
+          "latency_ms": 523.114,
+          "order_id": "0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc",
+          "response": {
+            "errorMsg": "",
+            "makingAmount": "",
+            "orderID": "0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc",
+            "status": "live",
+            "success": true,
+            "takingAmount": ""
+          },
+          "salt": "606902860816",
+          "status": "live",
+          "success": true,
+          "timestamp_ms": 1776848938892
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc is invalid. Duplicated.'}]",
+          "exception_type": "PolyApiException",
+          "index": 2,
+          "kind": "duplicate",
+          "latency_ms": 511.836,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc is invalid. Duplicated.'}]"
+          },
+          "salt": "606902860816",
+          "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc is invalid. Duplicated.\"}",
+          "success": false,
+          "timestamp_ms": 1776848938892
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc is invalid. Duplicated.'}]",
+          "exception_type": "PolyApiException",
+          "index": 3,
+          "kind": "duplicate",
+          "latency_ms": 548.369,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc is invalid. Duplicated.'}]"
+          },
+          "salt": "606902860816",
+          "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc is invalid. Duplicated.\"}",
+          "success": false,
+          "timestamp_ms": 1776848938892
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc is invalid. Duplicated.'}]",
+          "exception_type": "PolyApiException",
+          "index": 4,
+          "kind": "duplicate",
+          "latency_ms": 547.858,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc is invalid. Duplicated.'}]"
+          },
+          "salt": "606902860816",
+          "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc is invalid. Duplicated.\"}",
+          "success": false,
+          "timestamp_ms": 1776848938892
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc is invalid. Duplicated.'}]",
+          "exception_type": "PolyApiException",
+          "index": 5,
+          "kind": "duplicate",
+          "latency_ms": 690.513,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc is invalid. Duplicated.'}]"
+          },
+          "salt": "606902860816",
+          "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0x8611b0fac156fe6470b47b89a7c5323f59295a1a3ededa8184116155f6cb9abc is invalid. Duplicated.\"}",
+          "success": false,
+          "timestamp_ms": 1776848938892
+        }
+      ],
+      "shared_timestamp_ms": 1776848938892,
+      "summary": {
+        "fastest_success_ms": 523.114,
+        "latency_ms": {
+          "max": 690.513,
+          "median": 547.858,
+          "min": 511.836
+        },
+        "request_counts": {
+          "duplicate": 4,
+          "success": 1
+        }
+      },
+      "transport_error_count": 0,
+      "unique_salt_count": 1,
+      "unique_salts": [
+        "606902860816"
+      ],
+      "unique_timestamp_count": 1,
+      "unique_timestamps": [
+        1776848938892
+      ],
+      "winner_landed": true
+    },
+    {
+      "burst_mode": "exact-duplicate",
+      "cleanup_result": {
+        "response": {
+          "canceled": [
+            "0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e"
+          ],
+          "not_canceled": {}
+        },
+        "success": true
+      },
+      "client_success_count": 1,
+      "duplicate_reject_count": 9,
+      "fanout": 10,
+      "landed_without_success_response": false,
+      "new_open_order_count": 1,
+      "new_open_order_ids": [
+        "0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e"
+      ],
+      "new_open_orders": [
+        {
+          "asset_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216",
+          "associate_trades": [],
+          "created_at": 1776848943,
+          "expiration": "0",
+          "id": "0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e",
+          "maker_address": "0xEB6450dFa11842B5b5ddd392e1C96e5CA187B38E",
+          "market": "0x182390641d3b1b47cc64274b9da290efd04221c586651ba190880713da6347d9",
+          "order_type": "GTC",
+          "original_size": "5",
+          "outcome": "Yes",
+          "owner": "daa8241e-f590-fb61-309a-76e0ee39a51f",
+          "price": "0.01",
+          "side": "BUY",
+          "size_matched": "0",
+          "status": "LIVE"
+        }
+      ],
+      "requests": [
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]",
+          "exception_type": "PolyApiException",
+          "index": 1,
+          "kind": "duplicate",
+          "latency_ms": 608.011,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]"
+          },
+          "salt": "20229304970",
+          "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.\"}",
+          "success": false,
+          "timestamp_ms": 1776848942037
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]",
+          "exception_type": "PolyApiException",
+          "index": 2,
+          "kind": "duplicate",
+          "latency_ms": 625.201,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]"
+          },
+          "salt": "20229304970",
+          "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.\"}",
+          "success": false,
+          "timestamp_ms": 1776848942037
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]",
+          "exception_type": "PolyApiException",
+          "index": 3,
+          "kind": "duplicate",
+          "latency_ms": 629.642,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]"
+          },
+          "salt": "20229304970",
+          "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.\"}",
+          "success": false,
+          "timestamp_ms": 1776848942037
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]",
+          "exception_type": "PolyApiException",
+          "index": 4,
+          "kind": "duplicate",
+          "latency_ms": 629.597,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]"
+          },
+          "salt": "20229304970",
+          "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.\"}",
+          "success": false,
+          "timestamp_ms": 1776848942037
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]",
+          "exception_type": "PolyApiException",
+          "index": 5,
+          "kind": "duplicate",
+          "latency_ms": 608.66,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]"
+          },
+          "salt": "20229304970",
+          "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.\"}",
+          "success": false,
+          "timestamp_ms": 1776848942037
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]",
+          "exception_type": "PolyApiException",
+          "index": 6,
+          "kind": "duplicate",
+          "latency_ms": 603.524,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]"
+          },
+          "salt": "20229304970",
+          "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.\"}",
+          "success": false,
+          "timestamp_ms": 1776848942037
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]",
+          "exception_type": "PolyApiException",
+          "index": 7,
+          "kind": "duplicate",
+          "latency_ms": 520.808,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]"
+          },
+          "salt": "20229304970",
+          "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.\"}",
+          "success": false,
+          "timestamp_ms": 1776848942037
+        },
+        {
+          "error": "",
+          "index": 8,
+          "kind": "success",
+          "latency_ms": 520.856,
+          "order_id": "0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e",
+          "response": {
+            "errorMsg": "",
+            "makingAmount": "",
+            "orderID": "0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e",
+            "status": "live",
+            "success": true,
+            "takingAmount": ""
+          },
+          "salt": "20229304970",
+          "status": "live",
+          "success": true,
+          "timestamp_ms": 1776848942037
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]",
+          "exception_type": "PolyApiException",
+          "index": 9,
+          "kind": "duplicate",
+          "latency_ms": 630.121,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]"
+          },
+          "salt": "20229304970",
+          "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.\"}",
+          "success": false,
+          "timestamp_ms": 1776848942037
+        },
+        {
+          "error": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]",
+          "exception_type": "PolyApiException",
+          "index": 10,
+          "kind": "duplicate",
+          "latency_ms": 631.982,
+          "response": {
+            "exception": "PolyApiException[status_code=400, error_message={'error': 'order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.'}]"
+          },
+          "salt": "20229304970",
+          "sdk_http_error": "[py_clob_client_v2] request error status=400 url=https://clob-v2.polymarket.com/order body={\"error\":\"order 0x28dba6fea6881eaae2f2fc1ebae86088f652ec72b6aefa9e342b26cf69373b2e is invalid. Duplicated.\"}",
+          "success": false,
+          "timestamp_ms": 1776848942037
+        }
+      ],
+      "shared_timestamp_ms": 1776848942037,
+      "summary": {
+        "fastest_success_ms": 520.856,
+        "latency_ms": {
+          "max": 631.982,
+          "median": 616.93,
+          "min": 520.808
+        },
+        "request_counts": {
+          "duplicate": 9,
+          "success": 1
+        }
+      },
+      "transport_error_count": 0,
+      "unique_salt_count": 1,
+      "unique_salts": [
+        "20229304970"
+      ],
+      "unique_timestamp_count": 1,
+      "unique_timestamps": [
+        1776848942037
+      ],
+      "winner_landed": true
+    }
+  ],
+  "side": "BUY",
+  "size": "5",
+  "token_id": "102936224134271070189104847090829839924697394514566827387181305960175107677216"
+}

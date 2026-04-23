@@ -7,7 +7,7 @@ REPORTS_DIR := recordings/ws-bench
 ORDER_BURST_SCRIPT := polymarket_order_burst.py
 ORDER_BURST_DIR := recordings/order-burst
 
-.PHONY: help benchmark report order-burst web web-dev
+.PHONY: help benchmark report order-burst server web web-dev
 
 help:
 	@echo "Available targets:"
@@ -24,6 +24,11 @@ help:
 	@echo "    Run the Polymarket CLOB v2 duplicate/latency burst test."
 	@echo "    Writes $(ORDER_BURST_DIR)/<timestamp>/summary.json by default."
 	@echo "    Optional: REPEATS=10 BURST_MODE=exact-duplicate COUNTS=1,2,5,10"
+	@echo ""
+	@echo "  make server"
+	@echo "    List runs with a rendered report.html, prompt you to choose one,"
+	@echo "    and serve that directory via 'python3 -m http.server' on PORT (default 8000)."
+	@echo "    Prints the URL to open. Override with PORT=... HOST=0.0.0.0."
 	@echo ""
 	@echo "  make web"
 	@echo "    Build and serve the Next.js report dashboard on http://0.0.0.0:3000"
@@ -104,6 +109,56 @@ order-burst:
 	echo "[make] running order burst via $(ORDER_BURST_SCRIPT)"; \
 	echo "[make] summary: $$summary"; \
 	"$(PYTHON)" "$(ORDER_BURST_SCRIPT)" "$${args[@]}"
+
+server:
+	@set -euo pipefail; \
+	port="$${PORT:-8000}"; \
+	host="$${HOST:-0.0.0.0}"; \
+	run_dir="$${RUN_DIR:-}"; \
+	if [[ -z "$$run_dir" ]]; then \
+		runs=(); \
+		while IFS= read -r line; do \
+			[[ -n "$$line" ]] && runs+=("$$line"); \
+		done < <(find "$(REPORTS_DIR)" -type f -name report.html 2>/dev/null | sort -r); \
+		if (( $${#runs[@]} == 0 )); then \
+			echo "[make] no rendered reports found under $(REPORTS_DIR)"; \
+			echo "[make] run 'make report' first to render report.html"; \
+			exit 1; \
+		fi; \
+		echo "Available reports:"; \
+		for i in "$${!runs[@]}"; do \
+			printf "  %2d) %s\n" "$$((i + 1))" "$$(dirname "$${runs[$$i]}")"; \
+		done; \
+		echo ""; \
+		read -r -p "Choose a report to serve [1-$${#runs[@]}]: " choice; \
+		if [[ ! "$$choice" =~ ^[0-9]+$$ ]]; then \
+			echo "[make] invalid selection: $$choice"; \
+			exit 1; \
+		fi; \
+		if (( choice < 1 || choice > $${#runs[@]} )); then \
+			echo "[make] selection out of range: $$choice"; \
+			exit 1; \
+		fi; \
+		run_dir="$$(dirname "$${runs[$$((choice - 1))]}")"; \
+	else \
+		if [[ ! -f "$$run_dir/report.html" ]]; then \
+			echo "[make] $$run_dir/report.html not found"; \
+			exit 1; \
+		fi; \
+	fi; \
+	ip="$$(curl -fsS -m 1 -H 'X-aws-ec2-metadata-token-ttl-seconds: 60' -X PUT http://169.254.169.254/latest/api/token 2>/dev/null \
+		| { read -r token; [[ -n "$$token" ]] && curl -fsS -m 1 -H "X-aws-ec2-metadata-token: $$token" http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null; } \
+		|| curl -fsS -m 2 https://api.ipify.org 2>/dev/null \
+		|| curl -fsS -m 2 https://ifconfig.me 2>/dev/null \
+		|| hostname -I 2>/dev/null | awk '{print $$1}' \
+		|| echo "$$host")"; \
+	[[ -z "$$ip" ]] && ip="$$host"; \
+	echo ""; \
+	echo "[make] serving $$run_dir"; \
+	echo "[make] open: http://$$ip:$$port/report.html"; \
+	echo "[make] bound to $$host:$$port (Ctrl-C to stop)"; \
+	echo ""; \
+	cd "$$run_dir" && exec python3 -m http.server "$$port" --bind "$$host"
 
 web:
 	@set -euo pipefail; \
