@@ -4274,6 +4274,7 @@ async def handle_ws_frame(
     *,
     websocket: Any,
     raw_message: Any,
+    received_at_ns: int,
     connection_stats: ConnectionRuntimeStats,
     target: BenchmarkTarget,
     event_types: set[str],
@@ -4327,7 +4328,6 @@ async def handle_ws_frame(
             connection_stats.filtered_messages += 1
             continue
 
-        received_at_ns = time.time_ns()
         asset_ids = extract_asset_ids(raw_event)
         asset_id = asset_ids[0] if len(asset_ids) == 1 else None
         parsed_ts = parse_venue_timestamp(raw_event.get("timestamp"))
@@ -4437,12 +4437,14 @@ async def run_connection_worker(
                         raw_message = await asyncio.wait_for(websocket.recv(), timeout=1.0)
                     except asyncio.TimeoutError:
                         continue
+                    received_at_ns = time.time_ns()
 
                     connection_stats.total_messages += 1
                     connection_stats.note_message(time.monotonic())
                     await handle_ws_frame(
                         websocket=websocket,
                         raw_message=raw_message,
+                        received_at_ns=received_at_ns,
                         connection_stats=connection_stats,
                         target=target,
                         event_types=tracked_event_types,
