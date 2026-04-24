@@ -27,9 +27,10 @@ help:
 	@echo "    Env: MARKET=<slug> DURATION=<s> (default 1800) ROTATIONS=\"none,60,10\""
 	@echo ""
 	@echo "  make report"
-	@echo "    List available benchmark runs under $(REPORTS_DIR) and prompt you to choose one."
+	@echo "    List available runs under $(REPORTS_DIR) and $(ORDER_BURST_DIR) and"
+	@echo "    prompt you to choose one. Dispatches to the correct renderer based on path."
 	@echo ""
-	@echo "  make report SUMMARY=$(REPORTS_DIR)/<timestamp>/summary.json"
+	@echo "  make report SUMMARY=<path>/summary.json"
 	@echo "    Render a specific summary without the interactive prompt."
 	@echo ""
 	@echo "  make order-burst TOKEN_ID=<token-id>"
@@ -123,16 +124,24 @@ report:
 		summaries=(); \
 		while IFS= read -r line; do \
 			[[ -n "$$line" ]] && summaries+=("$$line"); \
-		done < <(find "$(REPORTS_DIR)" -type f -name summary.json 2>/dev/null | sort -r); \
+		done < <({ \
+			find "$(REPORTS_DIR)" -type f -name summary.json 2>/dev/null; \
+			find "$(ORDER_BURST_DIR)" -type f -name summary.json 2>/dev/null; \
+		} | awk -F/ '{print $$(NF-1)"\t"$$0}' | sort -r | cut -f2-); \
 		if (( $${#summaries[@]} == 0 )); then \
-			echo "[make] no benchmark summaries found under $(REPORTS_DIR)"; \
-			echo "[make] run 'make benchmark' first or pass SUMMARY=..."; \
+			echo "[make] no benchmark summaries found under $(REPORTS_DIR) or $(ORDER_BURST_DIR)"; \
+			echo "[make] run 'make benchmark' or 'make order-burst' first, or pass SUMMARY=..."; \
 			exit 1; \
 		fi; \
 		echo "Available benchmark runs:"; \
 		for i in "$${!summaries[@]}"; do \
 			run_dir="$$(dirname "$${summaries[$$i]}")"; \
-			printf "  %2d) %s\n" "$$((i + 1))" "$$run_dir"; \
+			case "$$run_dir" in \
+				$(ORDER_BURST_DIR)*) tag="order-burst";; \
+				$(REPORTS_DIR)*) tag="ws-bench";; \
+				*) tag="other";; \
+			esac; \
+			printf "  %2d) [%-10s] %s\n" "$$((i + 1))" "$$tag" "$$run_dir"; \
 		done; \
 		echo ""; \
 		read -r -p "Choose a run to render [1-$${#summaries[@]}]: " choice; \
@@ -154,8 +163,12 @@ report:
 			exit 1; \
 		fi; \
 	fi; \
-	echo "[make] rendering report for $$summary"; \
-	"$(PYTHON)" "$(REPORT_SCRIPT)" "$$summary"
+	case "$$summary" in \
+		$(ORDER_BURST_DIR)/*) script="$(ORDER_BURST_REPORT_SCRIPT)"; kind="order-burst";; \
+		*) script="$(REPORT_SCRIPT)"; kind="ws-bench";; \
+	esac; \
+	echo "[make] rendering $$kind report for $$summary"; \
+	"$(PYTHON)" "$$script" "$$summary"
 
 order-burst:
 	@set -euo pipefail; \
