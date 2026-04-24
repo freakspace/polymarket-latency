@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
+import httpx
 from dotenv import load_dotenv
 from py_clob_client_v2 import (
     ApiCreds,
@@ -44,6 +45,49 @@ from py_clob_client_v2 import (
     PartialCreateOrderOptions,
     Side,
 )
+from py_clob_client_v2.http_helpers import helpers as _sdk_http_helpers
+
+
+class _ThreadLocalHttpxClient:
+    """Per-thread httpx client proxy.
+
+    Why: py_clob_client_v2 keeps a module-level httpx.Client(http2=True) singleton.
+    Firing concurrent POSTs at it from a ThreadPoolExecutor races on a single HTTP/2
+    connection and most requests die with httpx.RequestError -> "Request exception!".
+    Giving each thread its own Client isolates the connection state so the burst
+    actually measures server-side behavior instead of client-side contention.
+    """
+
+    def __init__(self, **client_kwargs: Any) -> None:
+        self._client_kwargs = client_kwargs
+        self._local = threading.local()
+        self._all_clients: list[httpx.Client] = []
+        self._lock = threading.Lock()
+
+    def _get(self) -> httpx.Client:
+        client = getattr(self._local, "client", None)
+        if client is None:
+            client = httpx.Client(**self._client_kwargs)
+            self._local.client = client
+            with self._lock:
+                self._all_clients.append(client)
+        return client
+
+    def request(self, *args: Any, **kwargs: Any) -> httpx.Response:
+        return self._get().request(*args, **kwargs)
+
+    def close(self) -> None:
+        with self._lock:
+            clients = list(self._all_clients)
+            self._all_clients.clear()
+        for client in clients:
+            try:
+                client.close()
+            except Exception:
+                pass
+
+
+_sdk_http_helpers._http_client = _ThreadLocalHttpxClient(http2=True)
 
 
 DEFAULT_HOST = "https://clob-v2.polymarket.com"
@@ -102,8 +146,28 @@ class SdkHttpErrorCapture(logging.Handler):
 
 SDK_HTTP_ERROR_CAPTURE = SdkHttpErrorCapture()
 SDK_HTTP_HELPERS_LOGGER = logging.getLogger("py_clob_client_v2.http_helpers.helpers")
+SDK_HTTP_HELPERS_LOGGER.setLevel(logging.ERROR)
 if not any(handler is SDK_HTTP_ERROR_CAPTURE for handler in SDK_HTTP_HELPERS_LOGGER.handlers):
     SDK_HTTP_HELPERS_LOGGER.addHandler(SDK_HTTP_ERROR_CAPTURE)
+
+
+_sdk_original_request = _sdk_http_helpers.request
+
+
+def _sdk_request_with_exception_logging(*args: Any, **kwargs: Any) -> Any:
+    try:
+        return _sdk_original_request(*args, **kwargs)
+    except Exception as exc:
+        # The SDK only logs httpx.RequestError, so HTTP/2 stream errors and other
+        # non-RequestError exceptions vanish into a bare "Request exception!" with
+        # no breadcrumbs. Log here so the burst report can attribute the failure.
+        SDK_HTTP_HELPERS_LOGGER.error(
+            "[burst] sdk request raised %s: %s", type(exc).__name__, exc
+        )
+        raise
+
+
+_sdk_http_helpers.request = _sdk_request_with_exception_logging
 
 
 def env_first(*names: str) -> str | None:
@@ -840,6 +904,19 @@ def response_kind(response: Any) -> str:
     return "unknown"
 
 
+def warm_thread_http_client(client: ClobClient) -> None:
+    """Open + keep-alive a connection on this thread's httpx client.
+
+    Each thread starts with no live connection; without warmup, the first POST
+    after the barrier pays TCP + TLS + HTTP/2 handshake, which dominates the
+    measured burst latency and adds variance between threads.
+    """
+    try:
+        client.get_ok()
+    except Exception:
+        pass
+
+
 def post_one(
     client: ClobClient,
     order: Any,
@@ -849,6 +926,7 @@ def post_one(
 ) -> dict[str, Any]:
     thread_id = threading.get_ident()
     log_mark = SDK_HTTP_ERROR_CAPTURE.mark()
+    warm_thread_http_client(client)
     try:
         barrier.wait()
     except threading.BrokenBarrierError as exc:
