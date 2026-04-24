@@ -5,9 +5,10 @@ BENCHMARK_SCRIPT := ws_benchmark/benchmark.py
 REPORT_SCRIPT := ws_benchmark/html_generator.py
 REPORTS_DIR := recordings/ws-bench
 ORDER_BURST_SCRIPT := polymarket_order_burst.py
+ORDER_BURST_REPORT_SCRIPT := order_burst_html_generator.py
 ORDER_BURST_DIR := recordings/order-burst
 
-.PHONY: help benchmark report order-burst server web web-dev
+.PHONY: help benchmark report order-burst order-burst-report server web web-dev
 
 help:
 	@echo "Available targets:"
@@ -24,6 +25,12 @@ help:
 	@echo "    Run the Polymarket CLOB v2 duplicate/latency burst test."
 	@echo "    Writes $(ORDER_BURST_DIR)/<timestamp>/summary.json by default."
 	@echo "    Optional: REPEATS=10 BURST_MODE=exact-duplicate COUNTS=1,2,5,10"
+	@echo ""
+	@echo "  make order-burst-report"
+	@echo "    List available order-burst runs under $(ORDER_BURST_DIR) and prompt you to choose one."
+	@echo ""
+	@echo "  make order-burst-report SUMMARY=$(ORDER_BURST_DIR)/<timestamp>/summary.json"
+	@echo "    Render a standalone report.html next to the chosen summary.json."
 	@echo ""
 	@echo "  make server"
 	@echo "    List runs with a rendered report.html, prompt you to choose one,"
@@ -109,6 +116,47 @@ order-burst:
 	echo "[make] running order burst via $(ORDER_BURST_SCRIPT)"; \
 	echo "[make] summary: $$summary"; \
 	"$(PYTHON)" "$(ORDER_BURST_SCRIPT)" "$${args[@]}"
+
+order-burst-report:
+	@set -euo pipefail; \
+	summary="$${SUMMARY:-}"; \
+	if [[ -z "$$summary" ]]; then \
+		summaries=(); \
+		while IFS= read -r line; do \
+			[[ -n "$$line" ]] && summaries+=("$$line"); \
+		done < <(find "$(ORDER_BURST_DIR)" -type f -name summary.json 2>/dev/null | sort -r); \
+		if (( $${#summaries[@]} == 0 )); then \
+			echo "[make] no order-burst summaries found under $(ORDER_BURST_DIR)"; \
+			echo "[make] run 'make order-burst TOKEN_ID=...' first or pass SUMMARY=..."; \
+			exit 1; \
+		fi; \
+		echo "Available order-burst runs:"; \
+		for i in "$${!summaries[@]}"; do \
+			run_dir="$$(dirname "$${summaries[$$i]}")"; \
+			printf "  %2d) %s\n" "$$((i + 1))" "$$run_dir"; \
+		done; \
+		echo ""; \
+		read -r -p "Choose a run to render [1-$${#summaries[@]}]: " choice; \
+		if [[ ! "$$choice" =~ ^[0-9]+$$ ]]; then \
+			echo "[make] invalid selection: $$choice"; \
+			exit 1; \
+		fi; \
+		if (( choice < 1 || choice > $${#summaries[@]} )); then \
+			echo "[make] selection out of range: $$choice"; \
+			exit 1; \
+		fi; \
+		summary="$${summaries[$$((choice - 1))]}"; \
+	else \
+		if [[ -d "$$summary" ]]; then \
+			summary="$${summary%/}/summary.json"; \
+		fi; \
+		if [[ ! -f "$$summary" ]]; then \
+			echo "[make] summary file not found: $$summary"; \
+			exit 1; \
+		fi; \
+	fi; \
+	echo "[make] rendering order-burst report for $$summary"; \
+	"$(PYTHON)" "$(ORDER_BURST_REPORT_SCRIPT)" "$$summary"
 
 server:
 	@set -euo pipefail; \
