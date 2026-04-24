@@ -85,6 +85,7 @@ DEFAULT_CONFIG_FILENAME = "benchmark_config.toml"
 DEFAULT_EVENT_TYPES = ("book", "price_change", "last_trade_price")
 DEFAULT_DISTRIBUTION_SAMPLE_SIZE = 8192
 DEFAULT_EVENT_RETENTION_SECONDS = 30.0
+DEFAULT_FRESHNESS_DRIFT_BUCKET_SECONDS = 60.0
 CHART_COLORS = (
     "#2563eb",
     "#059669",
@@ -653,6 +654,8 @@ def _default_cli_config() -> dict[str, Any]:
         "topologies": "1,2,5,10",
         "warmup_seconds": 10.0,
         "warmup_compare_window_seconds": None,
+        "connection_rotate_seconds": None,
+        "freshness_drift_bucket_seconds": DEFAULT_FRESHNESS_DRIFT_BUCKET_SECONDS,
         "ping_interval_seconds": 20.0,
         "event_retention_seconds": DEFAULT_EVENT_RETENTION_SECONDS,
         "output_dir": None,
@@ -1087,9 +1090,11 @@ class ConnectionRuntimeStats:
     connection_id: str
     topology_id: str
     topology_size: int
+    connection_index_in_topology: int = 0
     connection_attempts: int = 0
     successful_connects: int = 0
     reconnects: int = 0
+    rotations: int = 0
     disconnects: int = 0
     connect_failures: int = 0
     total_messages: int = 0
@@ -1113,6 +1118,9 @@ class ConnectionRuntimeStats:
     current_segment_id: Optional[str] = None
     switch_reason: Optional[str] = None
     longest_silence_seconds: float = 0.0
+
+    def note_rotation(self) -> None:
+        self.rotations += 1
 
     def note_connect(
         self,
@@ -1216,6 +1224,7 @@ class ConnectionRuntimeStats:
             "connection_attempts": self.connection_attempts,
             "successful_connects": self.successful_connects,
             "reconnects": self.reconnects,
+            "rotations": self.rotations,
             "disconnects": self.disconnects,
             "connect_failures": self.connect_failures,
             "market_rebinds": self.market_rebinds,
@@ -1249,6 +1258,8 @@ class BenchmarkConfig:
     topologies: tuple[int, ...] = (1, 2, 5, 10)
     warmup_seconds: float = 10.0
     warmup_compare_window_seconds: Optional[float] = None
+    connection_rotate_seconds: Optional[float] = None
+    freshness_drift_bucket_seconds: float = DEFAULT_FRESHNESS_DRIFT_BUCKET_SECONDS
     ping_interval_seconds: float = 20.0
     progress_interval_seconds: float = 5.0
     series_refresh_seconds: float = 5.0
@@ -1738,6 +1749,8 @@ class MetricsAggregator:
                 "token_ids": list(token_ids),
                 "duration_seconds": config.duration_seconds,
                 "warmup_seconds": config.warmup_seconds,
+                "connection_rotate_seconds": config.connection_rotate_seconds,
+                "freshness_drift_bucket_seconds": config.freshness_drift_bucket_seconds,
                 "progress_interval_seconds": config.progress_interval_seconds,
                 "topologies": list(config.topologies),
                 "event_types": list(config.event_types),
@@ -2032,6 +2045,142 @@ class PhaseTimelineTracker:
                 "negative_phase_delta_ns": self._skipped_negative_dt,
             },
         }
+
+
+class FreshnessDriftTracker:
+    """Buckets freshness by elapsed wall-clock time since run start.
+
+    Each bucket is a fixed-width time window (default 60 s) since `run_started_ns`.
+    Per-topology freshness_ms distributions per bucket answer the question
+    "does freshness keep getting worse across the run, or stabilize?". Unlike
+    PhaseTimelineTracker, this does NOT reset on connect or rebind — buckets
+    are wall-clock, so the drift shape is visible across many connection
+    lifetimes.
+
+    Observations in a per-connection warmup window are excluded to match the
+    scored freshness metric elsewhere; book events are excluded because their
+    venue timestamp is a last-changed time, not an emit time.
+    """
+
+    def __init__(
+        self,
+        *,
+        topology_ids: Sequence[str],
+        run_started_ns: int,
+        bucket_width_seconds: float = DEFAULT_FRESHNESS_DRIFT_BUCKET_SECONDS,
+    ) -> None:
+        if bucket_width_seconds <= 0:
+            raise ValueError("bucket_width_seconds must be > 0")
+        self._topology_ids = tuple(topology_ids)
+        self._run_started_ns = int(run_started_ns)
+        self._bucket_width_seconds = float(bucket_width_seconds)
+        self._bucket_width_ns = int(bucket_width_seconds * 1_000_000_000)
+        self._freshness: dict[str, dict[int, StreamingDistribution]] = {
+            topology_id: {} for topology_id in self._topology_ids
+        }
+        self._counts: dict[str, dict[int, int]] = {
+            topology_id: {} for topology_id in self._topology_ids
+        }
+        self._max_bucket_idx = -1
+        self._skipped_warmup = 0
+        self._skipped_book_events = 0
+        self._skipped_missing_timestamp = 0
+        self._skipped_before_run_start = 0
+
+    def record_observation(self, observation: "Observation") -> None:
+        if observation.in_warmup:
+            self._skipped_warmup += 1
+            return
+        if observation.event_type == "book":
+            self._skipped_book_events += 1
+            return
+        if observation.venue_timestamp_ns is None:
+            self._skipped_missing_timestamp += 1
+            return
+        topology_buckets = self._freshness.get(observation.topology_id)
+        if topology_buckets is None:
+            return
+        elapsed_ns = observation.received_at_ns - self._run_started_ns
+        if elapsed_ns < 0:
+            self._skipped_before_run_start += 1
+            return
+        bucket_idx = elapsed_ns // self._bucket_width_ns
+        bucket_idx_int = int(bucket_idx)
+        dist = topology_buckets.get(bucket_idx_int)
+        if dist is None:
+            dist = StreamingDistribution()
+            topology_buckets[bucket_idx_int] = dist
+            self._counts[observation.topology_id][bucket_idx_int] = 0
+        freshness_ms = (
+            observation.received_at_ns - observation.venue_timestamp_ns
+        ) / 1_000_000
+        dist.add(freshness_ms)
+        self._counts[observation.topology_id][bucket_idx_int] += 1
+        if bucket_idx_int > self._max_bucket_idx:
+            self._max_bucket_idx = bucket_idx_int
+
+    def build_summary(self) -> dict[str, Any]:
+        bucket_count = self._max_bucket_idx + 1 if self._max_bucket_idx >= 0 else 0
+        bucket_specs: list[dict[str, Any]] = []
+        width = self._bucket_width_seconds
+        for idx in range(bucket_count):
+            lo = idx * width
+            hi = (idx + 1) * width
+            bucket_specs.append(
+                {
+                    "bucket_index": idx,
+                    "start_seconds": round(lo, 6),
+                    "end_seconds": round(hi, 6),
+                    "label": _format_drift_bucket_label(lo, hi),
+                }
+            )
+        topologies_summary: dict[str, list[dict[str, Any]]] = {}
+        for topology_id in self._topology_ids:
+            rows: list[dict[str, Any]] = []
+            topology_buckets = self._freshness.get(topology_id, {})
+            for idx in range(bucket_count):
+                dist = topology_buckets.get(idx)
+                rows.append(
+                    {
+                        "bucket_index": idx,
+                        "start_seconds": bucket_specs[idx]["start_seconds"],
+                        "end_seconds": bucket_specs[idx]["end_seconds"],
+                        "label": bucket_specs[idx]["label"],
+                        "observation_count": self._counts.get(topology_id, {}).get(idx, 0),
+                        "freshness_ms": (
+                            dist.to_distribution()
+                            if dist is not None
+                            else StreamingDistribution().to_distribution()
+                        ),
+                    }
+                )
+            topologies_summary[topology_id] = rows
+        return {
+            "bucket_width_seconds": self._bucket_width_seconds,
+            "bucket_count": bucket_count,
+            "buckets": bucket_specs,
+            "topologies": topologies_summary,
+            "skipped_observations": {
+                "warmup": self._skipped_warmup,
+                "book_events": self._skipped_book_events,
+                "missing_venue_timestamp": self._skipped_missing_timestamp,
+                "before_run_start": self._skipped_before_run_start,
+            },
+        }
+
+
+def _format_drift_bucket_label(lo_seconds: float, hi_seconds: float) -> str:
+    def _fmt(value: float) -> str:
+        if value >= 60:
+            minutes = value / 60.0
+            if minutes == int(minutes):
+                return f"{int(minutes)}m"
+            return f"{minutes:.1f}m"
+        if value == int(value):
+            return f"{int(value)}s"
+        return f"{value:g}s"
+
+    return f"{_fmt(lo_seconds)}–{_fmt(hi_seconds)}"
 
 
 @dataclass(slots=True)
@@ -3392,6 +3541,7 @@ def render_report_html(
         ("topology_gap_durations", "Relative Gap Durations", "How long topology-relative gaps last.", "duration"),
         ("warmup_quality", "Warmup vs Post-Warmup Freshness", "Warmup window compared against the first stable window after connect/rebind.", "warmup"),
         ("phase_freshness_timeline", "Freshness vs Time-Since-Phase-Reset", "Freshness P95 bucketed by seconds since the connection last entered warmup. Where the curve flattens tells you how long warmup should actually be.", "timeline"),
+        ("freshness_drift", "Freshness Drift Over Run", "Freshness P95 bucketed by elapsed wall-clock time since run start. A rising curve means the pool is genuinely degrading over the run; a flat curve means you're at steady state.", "drift"),
         ("connection_outliers", "Connection Outliers", "The 12 individual sockets with the worst freshness P95, across every topology. Makes visible the long tail being hidden by pool-level aggregation — if one socket in your 10-ws pool is consistently 500ms behind, it shows up here.", "outliers"),
     ]
 
@@ -3407,11 +3557,11 @@ def render_report_html(
 
     primary_charts_html = "".join(
         chart_card(name, heading, desc)
-        for name, heading, desc, _ in chart_card_specs[:6]
+        for name, heading, desc, _ in chart_card_specs[:7]
     )
     supporting_charts_html = "".join(
         chart_card(name, heading, desc)
-        for name, heading, desc, _ in chart_card_specs[6:]
+        for name, heading, desc, _ in chart_card_specs[7:]
     )
 
     extra_chart_names = [
@@ -3439,6 +3589,12 @@ def render_report_html(
     duration_seconds = run_metadata.get("duration_seconds")
     warmup_seconds = run_metadata.get("warmup_seconds")
     compare_seconds = run_metadata.get("warmup_compare_window_seconds")
+    rotate_seconds = run_metadata.get("connection_rotate_seconds")
+    rotate_note = (
+        f" · rotation {rotate_seconds}s"
+        if rotate_seconds
+        else ""
+    )
     tail_silence = activity_window.get("run_tail_silence_seconds")
     output_dir_label = html.escape(str(run_metadata.get("output_dir")))
 
@@ -3718,7 +3874,7 @@ def render_report_html(
         <span>Topologies: <strong>{html.escape(topologies_label)}</strong></span>
         <span>Duration: <strong>{duration_seconds}s</strong></span>
       </div>
-      <p class="hero-note">Warmup {warmup_seconds}s per connection · compare window {compare_seconds}s · tail silence {tail_silence}s · output {output_dir_label}</p>
+      <p class="hero-note">Warmup {warmup_seconds}s per connection · compare window {compare_seconds}s{rotate_note} · tail silence {tail_silence}s · output {output_dir_label}</p>
     </header>
 
     <section class="kpi-row">
@@ -4073,6 +4229,62 @@ def build_visualization_payload(
         "series": phase_timeline_series,
     }
 
+    freshness_drift = summary.get("freshness_drift") or {}
+    drift_topologies = freshness_drift.get("topologies") or {}
+    drift_buckets = freshness_drift.get("buckets") or []
+    drift_bucket_width = freshness_drift.get("bucket_width_seconds")
+
+    def _drift_bucket_freshness_p95(topology_id: str, bucket_idx: int) -> Optional[float]:
+        buckets = drift_topologies.get(topology_id) or []
+        if bucket_idx >= len(buckets):
+            return None
+        return metric_from_distribution(
+            buckets[bucket_idx].get("freshness_ms", {}), "p95"
+        )
+
+    def _drift_bucket_has_any_data(bucket_idx: int) -> bool:
+        for topology_id in topology_ids:
+            buckets = drift_topologies.get(topology_id) or []
+            if bucket_idx >= len(buckets):
+                continue
+            if (buckets[bucket_idx].get("observation_count") or 0) > 0:
+                return True
+        return False
+
+    drift_kept_indices = [
+        idx for idx in range(len(drift_buckets)) if _drift_bucket_has_any_data(idx)
+    ]
+    drift_categories = [
+        drift_buckets[idx].get("label", f"#{idx}") for idx in drift_kept_indices
+    ]
+    drift_series: list[dict[str, Any]] = []
+    for topology_idx, topology_id in enumerate(topology_ids):
+        drift_series.append(
+            {
+                "label": f"{topology_id} ws",
+                "color": CHART_COLORS[topology_idx % len(CHART_COLORS)],
+                "values": [
+                    _drift_bucket_freshness_p95(topology_id, bucket_idx)
+                    for bucket_idx in drift_kept_indices
+                ],
+            }
+        )
+    bucket_label = (
+        f"{drift_bucket_width:g}s" if drift_bucket_width else "fixed"
+    )
+    payload["freshness_drift"] = {
+        "title": "Freshness Drift Over Run",
+        "subtitle": (
+            f"Freshness P95 bucketed by elapsed wall-clock time since run start "
+            f"({bucket_label} buckets). Unlike the phase-reset chart, these buckets don't "
+            "reset on connect/rebind — so a rising curve means the pool is genuinely "
+            "degrading over time; a flat curve means whatever you're seeing is steady state."
+        ),
+        "value_kind": "ms",
+        "categories": drift_categories,
+        "series": drift_series,
+    }
+
     sorted_connections = sorted(
         summary["connections"].items(),
         key=lambda item: (
@@ -4213,6 +4425,15 @@ def write_visual_artifacts(
         visualization_state=visualization_state,
     )
 
+    run_metadata = summary.get("run_metadata") or {}
+    run_warmup_seconds = float(run_metadata.get("warmup_seconds") or 0.0)
+    skip_chart_names: set[str] = set()
+    if run_warmup_seconds <= 0:
+        # With warmup disabled the warmup-vs-post comparison has no warmup side
+        # to compare against; hide the chart entirely instead of showing a
+        # half-empty plot.
+        skip_chart_names.add("warmup_quality")
+
     chart_assets: dict[str, dict[str, str]] = {}
 
     small_multiples_specs: dict[str, dict[str, Any]] = {
@@ -4237,8 +4458,12 @@ def write_visual_artifacts(
         "topology_gap_durations",
         "warmup_quality",
         "phase_freshness_timeline",
+        "freshness_drift",
         "connection_outliers",
     ):
+        if chart_name in skip_chart_names:
+            finalization_log(f"[finalize] skipping {chart_name}.svg (not applicable)")
+            continue
         chart_spec = visualization_data[chart_name]
         finalization_log(f"[finalize] rendering {chart_name}.svg")
         if chart_name in small_multiples_specs:
@@ -4277,6 +4502,22 @@ def write_visual_artifacts(
                 ],
                 value_kind=str(chart_spec["value_kind"]),
                 x_axis_label="Seconds since last phase reset (connect or rebind)",
+            )
+        elif chart_name == "freshness_drift":
+            svg = render_line_chart_svg(
+                title=chart_spec["title"],
+                subtitle=chart_spec["subtitle"],
+                categories=chart_spec["categories"],
+                series=[
+                    ChartSeries(
+                        str(row["label"]),
+                        list(row["values"]),
+                        str(row["color"]),
+                    )
+                    for row in chart_spec["series"]
+                ],
+                value_kind=str(chart_spec["value_kind"]),
+                x_axis_label="Elapsed time since run start",
             )
         else:
             svg = render_grouped_bar_chart_svg(
@@ -4522,17 +4763,20 @@ async def resolve_initial_target(
         )
         if not target.token_ids:
             raise ValueError(f"market {config.market_slug!r} did not include token ids")
-        series_id = config.series_id or target.series_id
-        if series_id is None:
+        # Only enable series rebinding when the user explicitly asked for it
+        # by setting series_id. A market slug alone means "stick to this
+        # market" — don't silently adopt the Gamma-reported series_id.
+        rebind_series_id = config.series_id
+        if rebind_series_id is not None:
+            target.series_id = rebind_series_id
             status_log(
-                f"[startup] resolved market {target.market_slug!r} with token ids {list(target.token_ids)}"
+                f"[startup] resolved market {target.market_slug!r} with token ids {list(target.token_ids)} (series={rebind_series_id}, rebinding enabled)"
             )
-            return target, None
-        target.series_id = series_id
+            return target, rebind_series_id
         status_log(
-            f"[startup] resolved market {target.market_slug!r} with token ids {list(target.token_ids)} (series={series_id})"
+            f"[startup] resolved market {target.market_slug!r} with token ids {list(target.token_ids)} (single-market, no rebinding)"
         )
-        return target, series_id
+        return target, None
 
     if not config.series_id:
         raise ValueError("provide --market, --series-id, or at least one --token-id")
@@ -4821,7 +5065,14 @@ async def run_connection_worker(
         )
         return next_tokens
 
+    rotate_seconds: Optional[float] = (
+        config.connection_rotate_seconds
+        if config.connection_rotate_seconds and config.connection_rotate_seconds > 0
+        else None
+    )
+
     while not stop_event.is_set():
+        rotation_triggered = False
         try:
             async with websockets.connect(
                 config.ws_url,
@@ -4847,7 +5098,35 @@ async def run_connection_worker(
                     subscribed_token_ids=set(),
                 )
 
+                rotation_deadline_monotonic: Optional[float] = None
+                if rotate_seconds is not None:
+                    topology_size = max(1, connection_stats.topology_size)
+                    conn_idx = connection_stats.connection_index_in_topology
+                    # Stagger the very first rotation so sockets in the same
+                    # topology don't all disconnect at the same moment; once
+                    # staggered, every subsequent rotation stays on that
+                    # offset because each cycle uses the same interval.
+                    is_first_connect = connection_stats.successful_connects == 1
+                    stagger = (
+                        rotate_seconds * (conn_idx / topology_size)
+                        if is_first_connect
+                        else 0.0
+                    )
+                    rotation_deadline_monotonic = (
+                        now_monotonic + rotate_seconds + stagger
+                    )
+
                 while not stop_event.is_set():
+                    if (
+                        rotation_deadline_monotonic is not None
+                        and time.monotonic() >= rotation_deadline_monotonic
+                    ):
+                        rotation_triggered = True
+                        verbose_log(
+                            config,
+                            f"[rotate] {connection_stats.connection_id}",
+                        )
+                        break
                     latest_target, latest_version = target_state.snapshot()
                     if latest_version != version:
                         subscribed_token_ids = await apply_target(
@@ -4890,7 +5169,11 @@ async def run_connection_worker(
                 break
             await asyncio.sleep(config.reconnect_delay_seconds)
         else:
-            if not stop_event.is_set():
+            if rotation_triggered:
+                connection_stats.note_rotation()
+                # Skip the reconnect backoff on planned rotation so the pool
+                # comes back online immediately; backoff exists for failures.
+            elif not stop_event.is_set():
                 connection_stats.note_disconnect(RuntimeError("connection closed"))
                 await asyncio.sleep(config.reconnect_delay_seconds)
 
@@ -5096,6 +5379,7 @@ async def run_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
                 connection_id=connection_id,
                 topology_id=topology_id,
                 topology_size=topology_size,
+                connection_index_in_topology=idx,
             )
             connection_stats[connection_id] = runtime
             worker_tasks.append(
@@ -5132,6 +5416,11 @@ async def run_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
     phase_timeline_tracker = PhaseTimelineTracker(
         topology_ids=[str(size) for size in config.topologies],
     )
+    freshness_drift_tracker = FreshnessDriftTracker(
+        topology_ids=[str(size) for size in config.topologies],
+        run_started_ns=run_started_ns,
+        bucket_width_seconds=config.freshness_drift_bucket_seconds,
+    )
 
     with (
         (
@@ -5149,7 +5438,7 @@ async def run_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
             consume_observations(
                 queue=queue,
                 aggregators=(aggregator, warmup_aggregator, post_warmup_aggregator),
-                recorders=(phase_timeline_tracker,),
+                recorders=(phase_timeline_tracker, freshness_drift_tracker),
                 events_handle=events_handle,
                 include_raw_event_payload=config.include_raw_event_payload,
             )
@@ -5225,6 +5514,8 @@ async def run_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
             topologies=config.topologies,
             warmup_seconds=config.warmup_seconds,
             warmup_compare_window_seconds=config.warmup_compare_window_seconds,
+            connection_rotate_seconds=config.connection_rotate_seconds,
+            freshness_drift_bucket_seconds=config.freshness_drift_bucket_seconds,
             ping_interval_seconds=config.ping_interval_seconds,
             progress_interval_seconds=config.progress_interval_seconds,
             series_refresh_seconds=config.series_refresh_seconds,
@@ -5259,6 +5550,8 @@ async def run_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
             topologies=config.topologies,
             warmup_seconds=config.warmup_seconds,
             warmup_compare_window_seconds=config.warmup_compare_window_seconds,
+            connection_rotate_seconds=config.connection_rotate_seconds,
+            freshness_drift_bucket_seconds=config.freshness_drift_bucket_seconds,
             ping_interval_seconds=config.ping_interval_seconds,
             progress_interval_seconds=config.progress_interval_seconds,
             series_refresh_seconds=config.series_refresh_seconds,
@@ -5291,6 +5584,8 @@ async def run_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
             topologies=config.topologies,
             warmup_seconds=config.warmup_seconds,
             warmup_compare_window_seconds=config.warmup_compare_window_seconds,
+            connection_rotate_seconds=config.connection_rotate_seconds,
+            freshness_drift_bucket_seconds=config.freshness_drift_bucket_seconds,
             ping_interval_seconds=config.ping_interval_seconds,
             progress_interval_seconds=config.progress_interval_seconds,
             series_refresh_seconds=config.series_refresh_seconds,
@@ -5334,6 +5629,7 @@ async def run_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
         compare_window_seconds=compare_window_seconds(config),
     )
     summary["phase_timeline"] = phase_timeline_tracker.build_summary()
+    summary["freshness_drift"] = freshness_drift_tracker.build_summary()
 
     runtime_errors = [
         str(result)
@@ -5439,6 +5735,25 @@ def build_parser(defaults: dict[str, Any]) -> argparse.ArgumentParser:
         type=float,
         default=defaults["warmup_compare_window_seconds"],
         help="Immediate post-warmup comparison window in seconds. Defaults to --warmup-seconds.",
+    )
+    parser.add_argument(
+        "--connection-rotate-seconds",
+        type=float,
+        default=defaults["connection_rotate_seconds"],
+        help=(
+            "If set, each socket is intentionally closed and re-opened on this interval "
+            "(per-topology staggered) so the pool stays in the early post-connect phase. "
+            "Use with a small --warmup-seconds to measure rotation's effect on freshness."
+        ),
+    )
+    parser.add_argument(
+        "--freshness-drift-bucket-seconds",
+        type=float,
+        default=defaults["freshness_drift_bucket_seconds"],
+        help=(
+            "Width (seconds) of the wall-clock-time buckets used by the freshness "
+            "drift chart. Default: 60."
+        ),
     )
     parser.add_argument(
         "--ping-interval-seconds",
@@ -5624,6 +5939,8 @@ async def async_main(argv: Optional[Sequence[str]] = None) -> int:
         topologies=args.topologies,
         warmup_seconds=args.warmup_seconds,
         warmup_compare_window_seconds=args.warmup_compare_window_seconds,
+        connection_rotate_seconds=args.connection_rotate_seconds,
+        freshness_drift_bucket_seconds=args.freshness_drift_bucket_seconds,
         ping_interval_seconds=args.ping_interval_seconds,
         progress_interval_seconds=args.progress_interval_seconds,
         series_refresh_seconds=args.series_refresh_seconds,

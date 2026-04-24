@@ -8,12 +8,23 @@ ORDER_BURST_SCRIPT := polymarket_order_burst.py
 ORDER_BURST_REPORT_SCRIPT := order_burst_html_generator.py
 ORDER_BURST_DIR := recordings/order-burst
 
-.PHONY: help benchmark report order-burst order-burst-report server web web-dev
+.PHONY: help benchmark bench-sweep report order-burst order-burst-report server web web-dev
 
 help:
 	@echo "Available targets:"
 	@echo "  make benchmark"
 	@echo "    Run ws_benchmark/benchmark.py using the default config flow."
+	@echo "    Env overrides: MARKET=<slug> SERIES_ID=<id> TOKEN_ID=<id> DURATION=<s>"
+	@echo "                   TOPOLOGIES=1,2,5,10 WARMUP_SECONDS=<s>"
+	@echo "                   CONNECTION_ROTATE_SECONDS=<s> WRITE_VISUALS=1 VERBOSE=1"
+	@echo "    Use ARGS=\"...\" to pass raw flags (space-separated)."
+	@echo ""
+	@echo "  make bench-sweep"
+	@echo "    Run the benchmark three times back-to-back on the same market with"
+	@echo "    zero warmup and different rotation intervals (none, 60s, 10s), so"
+	@echo "    you can compare Freshness P95 and the Drift chart across connection"
+	@echo "    lifetimes. Outputs grouped under recordings/ws-bench-sweeps/<timestamp>/."
+	@echo "    Env: MARKET=<slug> DURATION=<s> (default 1800) ROTATIONS=\"none,60,10\""
 	@echo ""
 	@echo "  make report"
 	@echo "    List available benchmark runs under $(REPORTS_DIR) and prompt you to choose one."
@@ -33,9 +44,9 @@ help:
 	@echo "    Render a standalone report.html next to the chosen summary.json."
 	@echo ""
 	@echo "  make server"
-	@echo "    List runs with a rendered report.html, prompt you to choose one,"
-	@echo "    and serve that directory via 'python3 -m http.server' on PORT (default 8000)."
-	@echo "    Prints the URL to open. Override with PORT=... HOST=0.0.0.0."
+	@echo "    List rendered reports from both $(REPORTS_DIR) and $(ORDER_BURST_DIR),"
+	@echo "    prompt you to choose one, and serve that directory via 'python3 -m http.server'"
+	@echo "    on PORT (default 8000). Prints the URL to open. Override with PORT=... HOST=0.0.0.0."
 	@echo ""
 	@echo "  make web"
 	@echo "    Build and serve the Next.js report dashboard on http://0.0.0.0:3000"
@@ -45,8 +56,65 @@ help:
 	@echo "    Start the Next.js dev server with HMR on http://localhost:3000."
 
 benchmark:
-	@echo "[make] running benchmark via $(BENCHMARK_SCRIPT)"
-	@"$(PYTHON)" "$(BENCHMARK_SCRIPT)"
+	@set -euo pipefail; \
+	args=(); \
+	if [[ -n "$${MARKET:-}" ]]; then args+=(--market "$$MARKET"); fi; \
+	if [[ -n "$${SERIES_ID:-}" ]]; then args+=(--series-id "$$SERIES_ID"); fi; \
+	if [[ -n "$${TOKEN_ID:-}" ]]; then args+=(--token-id "$$TOKEN_ID"); fi; \
+	if [[ -n "$${DURATION:-}" ]]; then args+=(--duration "$$DURATION"); fi; \
+	if [[ -n "$${TOPOLOGIES:-}" ]]; then args+=(--topologies "$$TOPOLOGIES"); fi; \
+	if [[ -n "$${WARMUP_SECONDS:-}" ]]; then args+=(--warmup-seconds "$$WARMUP_SECONDS"); fi; \
+	if [[ -n "$${WARMUP_COMPARE_WINDOW_SECONDS:-}" ]]; then args+=(--warmup-compare-window-seconds "$$WARMUP_COMPARE_WINDOW_SECONDS"); fi; \
+	if [[ -n "$${CONNECTION_ROTATE_SECONDS:-}" ]]; then args+=(--connection-rotate-seconds "$$CONNECTION_ROTATE_SECONDS"); fi; \
+	if [[ "$${WRITE_VISUALS:-}" == "1" ]]; then args+=(--write-visuals); fi; \
+	if [[ "$${WRITE_EVENT_LOG:-}" == "1" ]]; then args+=(--write-event-log); fi; \
+	if [[ "$${WRITE_CONNECTION_LOG:-}" == "1" ]]; then args+=(--write-connection-log); fi; \
+	if [[ "$${VERBOSE:-}" == "1" ]]; then args+=(--verbose); fi; \
+	if [[ -n "$${ARGS:-}" ]]; then \
+		eval "extra_args=($$ARGS)"; \
+		args+=("$${extra_args[@]}"); \
+	fi; \
+	echo "[make] running benchmark via $(BENCHMARK_SCRIPT) $${args[*]:-}"; \
+	exec "$(PYTHON)" "$(BENCHMARK_SCRIPT)" $${args[@]+"$${args[@]}"}
+
+bench-sweep:
+	@set -euo pipefail; \
+	sweep_ts="$$(date +%Y%m%d_%H%M%S)"; \
+	root="recordings/ws-bench-sweeps/$$sweep_ts"; \
+	mkdir -p "$$root"; \
+	duration="$${DURATION:-1800}"; \
+	market="$${MARKET:-}"; \
+	series_id="$${SERIES_ID:-}"; \
+	rotations_spec="$${ROTATIONS:-none,60,10}"; \
+	IFS=',' read -r -a rotations <<< "$$rotations_spec"; \
+	echo "[sweep] root=$$root duration=$${duration}s rotations=$$rotations_spec"; \
+	if [[ -n "$$market" ]]; then echo "[sweep] market=$$market"; fi; \
+	if [[ -n "$$series_id" ]]; then echo "[sweep] series_id=$$series_id"; fi; \
+	started_epoch=$$(date +%s); \
+	for rotation in "$${rotations[@]}"; do \
+		label="$$rotation"; \
+		out_dir="$$root/rotation_$$label"; \
+		echo ""; \
+		echo "[sweep] ============================================================"; \
+		echo "[sweep]  run: rotation=$$label  →  $$out_dir"; \
+		echo "[sweep] ============================================================"; \
+		args=(--duration "$$duration" --warmup-seconds 0 --write-visuals --output-dir "$$out_dir"); \
+		if [[ -n "$$market" ]]; then args+=(--market "$$market"); fi; \
+		if [[ -n "$$series_id" ]]; then args+=(--series-id "$$series_id"); fi; \
+		if [[ "$$label" != "none" ]]; then args+=(--connection-rotate-seconds "$$label"); fi; \
+		run_started=$$(date +%s); \
+		"$(PYTHON)" "$(BENCHMARK_SCRIPT)" "$${args[@]}"; \
+		run_elapsed=$$(( $$(date +%s) - run_started )); \
+		echo "[sweep] run rotation=$$label finished in $${run_elapsed}s"; \
+	done; \
+	total_elapsed=$$(( $$(date +%s) - started_epoch )); \
+	echo ""; \
+	echo "[sweep] ============================================================"; \
+	echo "[sweep] sweep complete in $${total_elapsed}s"; \
+	echo "[sweep] reports:"; \
+	for rotation in "$${rotations[@]}"; do \
+		echo "  rotation=$$rotation  →  $$root/rotation_$$rotation/report.html"; \
+	done
 
 report:
 	@set -euo pipefail; \
@@ -167,15 +235,26 @@ server:
 		runs=(); \
 		while IFS= read -r line; do \
 			[[ -n "$$line" ]] && runs+=("$$line"); \
-		done < <(find "$(REPORTS_DIR)" -type f -name report.html 2>/dev/null | sort -r); \
+		done < <({ \
+			find "$(REPORTS_DIR)" -type f -name report.html 2>/dev/null; \
+			find "$(ORDER_BURST_DIR)" -type f -name report.html 2>/dev/null; \
+			find "recordings/ws-bench-sweeps" -type f -name report.html 2>/dev/null; \
+		} | awk -F/ '{print $$(NF-1)"\t"$$0}' | sort -r | cut -f2-); \
 		if (( $${#runs[@]} == 0 )); then \
-			echo "[make] no rendered reports found under $(REPORTS_DIR)"; \
-			echo "[make] run 'make report' first to render report.html"; \
+			echo "[make] no rendered reports found under $(REPORTS_DIR), $(ORDER_BURST_DIR), or recordings/ws-bench-sweeps"; \
+			echo "[make] run 'make report', 'make order-burst-report', or 'make bench-sweep' first to render report.html"; \
 			exit 1; \
 		fi; \
 		echo "Available reports:"; \
 		for i in "$${!runs[@]}"; do \
-			printf "  %2d) %s\n" "$$((i + 1))" "$$(dirname "$${runs[$$i]}")"; \
+			rd="$$(dirname "$${runs[$$i]}")"; \
+			case "$$rd" in \
+				$(ORDER_BURST_DIR)*) tag="order-burst";; \
+				recordings/ws-bench-sweeps*) tag="ws-sweep";; \
+				$(REPORTS_DIR)*) tag="ws-bench";; \
+				*) tag="other";; \
+			esac; \
+			printf "  %2d) [%-10s] %s\n" "$$((i + 1))" "$$tag" "$$rd"; \
 		done; \
 		echo ""; \
 		read -r -p "Choose a report to serve [1-$${#runs[@]}]: " choice; \
