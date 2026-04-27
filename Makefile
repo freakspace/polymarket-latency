@@ -8,7 +8,7 @@ ORDER_BURST_SCRIPT := polymarket_order_burst.py
 ORDER_BURST_REPORT_SCRIPT := order_burst_html_generator.py
 ORDER_BURST_DIR := recordings/order-burst
 
-.PHONY: help benchmark bench-sweep report order-burst order-burst-report server web web-dev
+.PHONY: help benchmark benchmark-48h bench-sweep report order-burst order-burst-report server web web-dev
 
 help:
 	@echo "Available targets:"
@@ -18,6 +18,14 @@ help:
 	@echo "                   TOPOLOGIES=1,2,5,10 WARMUP_SECONDS=<s>"
 	@echo "                   CONNECTION_ROTATE_SECONDS=<s> WRITE_VISUALS=1 VERBOSE=1"
 	@echo "    Use ARGS=\"...\" to pass raw flags (space-separated)."
+	@echo ""
+	@echo "  make benchmark-48h"
+	@echo "    Run the 48-hour latency study using ws_benchmark/benchmark_config_48h.toml"
+	@echo "    (topologies 1,2,5,10,15; series 10684; rotation 10s). Tees stdout+stderr to"
+	@echo "    LOG (default /tmp/poly-48h.log). Sets BENCHMARK_ASYNCIO_DEBUG=1 and"
+	@echo "    BENCHMARK_SLOW_CALLBACK_MS=200 by default. Run inside tmux/screen so"
+	@echo "    the SSH session can drop without killing the run."
+	@echo "    Env overrides: CONFIG=<path> LOG=<path> ARGS=\"...\" SKIP_DEBUG=1"
 	@echo ""
 	@echo "  make bench-sweep"
 	@echo "    Run the benchmark three times back-to-back on the same market with"
@@ -77,6 +85,35 @@ benchmark:
 	fi; \
 	echo "[make] running benchmark via $(BENCHMARK_SCRIPT) $${args[*]:-}"; \
 	exec "$(PYTHON)" "$(BENCHMARK_SCRIPT)" $${args[@]+"$${args[@]}"}
+
+benchmark-48h:
+	@set -euo pipefail; \
+	config="$${CONFIG:-ws_benchmark/benchmark_config_48h.toml}"; \
+	log="$${LOG:-/tmp/poly-48h.log}"; \
+	if [[ ! -f "$$config" ]]; then \
+		echo "[make] config not found: $$config"; \
+		exit 1; \
+	fi; \
+	args=(--config "$$config"); \
+	if [[ -n "$${ARGS:-}" ]]; then \
+		eval "extra_args=($$ARGS)"; \
+		args+=("$${extra_args[@]}"); \
+	fi; \
+	if [[ -z "$${TMUX:-}" && -z "$${STY:-}" ]]; then \
+		echo "[make] WARNING: not inside tmux/screen — SSH disconnect will kill this 48h run."; \
+		echo "[make]   tmux new -s polymarket  (then re-run this target)"; \
+		echo ""; \
+	fi; \
+	if [[ "$${SKIP_DEBUG:-0}" != "1" ]]; then \
+		export BENCHMARK_ASYNCIO_DEBUG="$${BENCHMARK_ASYNCIO_DEBUG:-1}"; \
+		export BENCHMARK_SLOW_CALLBACK_MS="$${BENCHMARK_SLOW_CALLBACK_MS:-200}"; \
+	fi; \
+	echo "[make] config: $$config"; \
+	echo "[make] log:    $$log"; \
+	echo "[make] env:    BENCHMARK_ASYNCIO_DEBUG=$${BENCHMARK_ASYNCIO_DEBUG:-unset} BENCHMARK_SLOW_CALLBACK_MS=$${BENCHMARK_SLOW_CALLBACK_MS:-unset}"; \
+	echo "[make] cmd:    $(PYTHON) $(BENCHMARK_SCRIPT) $${args[*]}"; \
+	echo ""; \
+	"$(PYTHON)" "$(BENCHMARK_SCRIPT)" "$${args[@]}" 2>&1 | tee "$$log"
 
 bench-sweep:
 	@set -euo pipefail; \
