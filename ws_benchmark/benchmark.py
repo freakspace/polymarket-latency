@@ -1554,6 +1554,7 @@ class MetricsAggregator:
         connection_ids_by_topology: dict[str, list[str]],
         scoring_filter: Optional[Callable[[Observation], bool]] = None,
         event_retention_seconds: float = DEFAULT_EVENT_RETENTION_SECONDS,
+        track_all_observations: bool = True,
     ) -> None:
         self._topology_ids = tuple(topology_ids)
         self._connection_ids_by_topology = {
@@ -1572,6 +1573,7 @@ class MetricsAggregator:
             connection_id: idx for idx, connection_id in enumerate(self._connection_ids)
         }
         self._scoring_filter = scoring_filter or (lambda observation: not observation.in_warmup)
+        self._track_all_observations = track_all_observations
         self._event_retention_ns = int(max(0.0, event_retention_seconds) * 1_000_000_000)
         self._pending_events: dict[str, PendingEventAggregate] = {}
         self._pending_order: deque[tuple[int, str]] = deque()
@@ -1593,11 +1595,12 @@ class MetricsAggregator:
         self.union_inter_event_gap_ms = StreamingDistribution()
 
     def record_observation(self, observation: Observation) -> None:
-        self.all_observations += 1
-        self.parseability_all.record(observation.venue_timestamp_parse_mode)
-        self._stats_for_event_type(
-            self.parseability_by_event_type_all, observation.event_type
-        ).record(observation.venue_timestamp_parse_mode)
+        if self._track_all_observations:
+            self.all_observations += 1
+            self.parseability_all.record(observation.venue_timestamp_parse_mode)
+            self._stats_for_event_type(
+                self.parseability_by_event_type_all, observation.event_type
+            ).record(observation.venue_timestamp_parse_mode)
 
         if not self._scoring_filter(observation):
             return
@@ -5230,6 +5233,13 @@ async def consume_observations(
     events_handle: Optional[Any],
     include_raw_event_payload: bool,
 ) -> None:
+    # Cooperative yield every YIELD_EVERY observations so connection workers'
+    # ws.recv() coroutines get scheduled instead of starving while we drain a
+    # backlogged queue. queue.get() only yields when the queue is empty, so
+    # under load this loop would otherwise run synchronously for hundreds of
+    # observations and block the event loop for hundreds of ms.
+    YIELD_EVERY = 32
+    processed_since_yield = 0
     while True:
         observation = await queue.get()
         if observation is None:
@@ -5243,6 +5253,10 @@ async def consume_observations(
                 events_handle,
                 observation.to_record(include_raw_event=include_raw_event_payload),
             )
+        processed_since_yield += 1
+        if processed_since_yield >= YIELD_EVERY:
+            processed_since_yield = 0
+            await asyncio.sleep(0)
 
 
 def _resolve_malloc_trim() -> Optional[Callable[[int], int]]:
@@ -5450,12 +5464,14 @@ async def run_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
         connection_ids_by_topology=connection_ids_by_topology,
         scoring_filter=lambda observation: observation.phase_kind == "warmup",
         event_retention_seconds=config.event_retention_seconds,
+        track_all_observations=False,
     )
     post_warmup_aggregator = MetricsAggregator(
         topology_ids=[str(size) for size in config.topologies],
         connection_ids_by_topology=connection_ids_by_topology,
         scoring_filter=lambda observation: observation.phase_kind == "post_warmup_compare",
         event_retention_seconds=config.event_retention_seconds,
+        track_all_observations=False,
     )
     phase_timeline_tracker = PhaseTimelineTracker(
         topology_ids=[str(size) for size in config.topologies],

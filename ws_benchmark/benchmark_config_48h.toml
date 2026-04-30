@@ -8,7 +8,7 @@
 
 series_id = "10684"
 duration = 172800                       # 48h
-topologies = [15]                       # standalone 15-socket study. Saturation threshold sits below 25 sockets — [10,15]=25 produced 9-17s freshness P95 and 64 slow-callbacks/2min. [15] alone fits comfortably; cross-pool comparison reuses the earlier [1,2,5,10] 18-socket run.
+topologies = [1, 2, 5, 10, 15]          # full topology sweep, restored after optimizing the consume_observations cooperative yield + skipping redundant parseability tracking on the warmup/post_warmup aggregators.
 # rotation disabled: rotate≈warmup makes every scored sample a resubscribe-replay
 # event with stale venue_timestamp, collapsing freshness P95 to ~8s and coverage
 # to single digits. Use bench-sweep to study rotation effects in isolation.
