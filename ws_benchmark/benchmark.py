@@ -20,10 +20,12 @@ import html
 import json
 import math
 import os
+import queue as queue_module
 import random
 import resource
 import statistics
 import sys
+import threading
 import time
 from array import array
 from collections import Counter, deque
@@ -4992,7 +4994,7 @@ async def handle_ws_frame(
     connection_stats: ConnectionRuntimeStats,
     target: BenchmarkTarget,
     event_types: set[str],
-    queue: asyncio.Queue[Optional[Observation]],
+    queue: "queue_module.Queue[Optional[Observation]]",
     capture_raw_event: bool = False,
 ) -> None:
     if isinstance(raw_message, bytes):
@@ -5073,7 +5075,14 @@ async def handle_ws_frame(
             raw_event=raw_event if capture_raw_event else None,
         )
         connection_stats.total_events += 1
-        await queue.put(observation)
+        try:
+            queue.put_nowait(observation)
+        except queue_module.Full:
+            # Queue is bounded for memory safety. On the rare full case, fall
+            # back to a blocking put on a thread-pool worker so we don't stall
+            # the asyncio loop while waiting for the consumer thread to drain.
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, queue.put, observation)
 
 
 async def run_connection_worker(
@@ -5081,7 +5090,7 @@ async def run_connection_worker(
     config: BenchmarkConfig,
     target_state: TargetState,
     connection_stats: ConnectionRuntimeStats,
-    queue: asyncio.Queue[Optional[Observation]],
+    queue: "queue_module.Queue[Optional[Observation]]",
     stop_event: asyncio.Event,
     capture_raw_event: bool = False,
 ) -> None:
@@ -5225,23 +5234,20 @@ async def run_connection_worker(
                 await asyncio.sleep(config.reconnect_delay_seconds)
 
 
-async def consume_observations(
+def consume_observations(
     *,
-    queue: asyncio.Queue[Optional[Observation]],
+    queue: "queue_module.Queue[Optional[Observation]]",
     aggregators: Sequence[MetricsAggregator],
     recorders: Sequence[Any] = (),
     events_handle: Optional[Any],
     include_raw_event_payload: bool,
 ) -> None:
-    # Cooperative yield every YIELD_EVERY observations so connection workers'
-    # ws.recv() coroutines get scheduled instead of starving while we drain a
-    # backlogged queue. queue.get() only yields when the queue is empty, so
-    # under load this loop would otherwise run synchronously for hundreds of
-    # observations and block the event loop for hundreds of ms.
-    YIELD_EVERY = 32
-    processed_since_yield = 0
+    # Synchronous consumer running on a dedicated threading.Thread. Aggregator
+    # work no longer competes with WS recv coroutines for asyncio loop time;
+    # GIL rotation (sys.switchinterval, ~5ms) keeps the asyncio loop responsive
+    # enough to maintain ws keepalive pings even when this thread is CPU-busy.
     while True:
-        observation = await queue.get()
+        observation = queue.get()
         if observation is None:
             break
         for aggregator in aggregators:
@@ -5253,10 +5259,6 @@ async def consume_observations(
                 events_handle,
                 observation.to_record(include_raw_event=include_raw_event_payload),
             )
-        processed_since_yield += 1
-        if processed_since_yield >= YIELD_EVERY:
-            processed_since_yield = 0
-            await asyncio.sleep(0)
 
 
 def _resolve_malloc_trim() -> Optional[Callable[[int], int]]:
@@ -5413,7 +5415,10 @@ async def run_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
     # Queue size bounds peak RAM: each Observation is ~1 KB without raw_event,
     # far larger with it. 10_000 keeps worst-case backpressure under ~100 MB
     # even on a 1 GB host; the consumer usually drains well below this.
-    queue: asyncio.Queue[Optional[Observation]] = asyncio.Queue(maxsize=10_000)
+    # Thread-safe queue so the consumer can run on a dedicated threading.Thread,
+    # off the asyncio loop. WS workers push via put_nowait; on rare full-queue
+    # they fall back to run_in_executor to avoid blocking the loop.
+    queue: "queue_module.Queue[Optional[Observation]]" = queue_module.Queue(maxsize=10_000)
     capture_raw_event = config.write_event_log and config.include_raw_event_payload
     stop_event = asyncio.Event()
     target_state = TargetState(current_target=initial_target)
@@ -5494,15 +5499,19 @@ async def run_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
             else contextlib.nullcontext(None)
         ) as connections_handle,
     ):
-        consumer_task = asyncio.create_task(
-            consume_observations(
-                queue=queue,
-                aggregators=(aggregator, warmup_aggregator, post_warmup_aggregator),
-                recorders=(phase_timeline_tracker, freshness_drift_tracker),
-                events_handle=events_handle,
-                include_raw_event_payload=config.include_raw_event_payload,
-            )
+        consumer_thread = threading.Thread(
+            target=consume_observations,
+            kwargs={
+                "queue": queue,
+                "aggregators": (aggregator, warmup_aggregator, post_warmup_aggregator),
+                "recorders": (phase_timeline_tracker, freshness_drift_tracker),
+                "events_handle": events_handle,
+                "include_raw_event_payload": config.include_raw_event_payload,
+            },
+            name="aggregator-consumer",
+            daemon=False,
         )
+        consumer_thread.start()
         reporter_task = asyncio.create_task(
             report_progress(
                 config=config,
@@ -5546,8 +5555,12 @@ async def run_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
                 with contextlib.suppress(asyncio.CancelledError):
                     await series_task
             finalization_log("[finalize] draining remaining observations")
-            await queue.put(None)
-            await consumer_task
+            queue.put(None)
+            # Drain on a thread to avoid blocking the asyncio loop while the
+            # consumer finishes processing whatever's still queued.
+            await asyncio.get_running_loop().run_in_executor(
+                None, consumer_thread.join
+            )
             reporter_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await reporter_task
