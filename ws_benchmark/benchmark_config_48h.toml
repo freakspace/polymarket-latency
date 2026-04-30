@@ -8,7 +8,7 @@
 
 series_id = "10684"
 duration = 172800                       # 48h
-topologies = [1, 2, 5, 10, 15]          # full topology sweep, restored after optimizing the consume_observations cooperative yield + skipping redundant parseability tracking on the warmup/post_warmup aggregators.
+topologies = [1, 2, 5, 10]              # validated clean: P95 freshness ~210ms, no slow callbacks. [1,2,5,10,15]=33 sockets does NOT work from a single IP — Polymarket kicks connections (~1/min disconnects observed), and the local aggregator also saturates. Aggregator was optimized (cooperative yield + parseability skip) but the per-IP connection limit is the binding constraint. To collect 15-socket data, run a separate harness on a separate IP with topologies = [15] only, same market and wall-clock window.
 # rotation disabled: rotate≈warmup makes every scored sample a resubscribe-replay
 # event with stale venue_timestamp, collapsing freshness P95 to ~8s and coverage
 # to single digits. Use bench-sweep to study rotation effects in isolation.
