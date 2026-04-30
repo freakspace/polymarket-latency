@@ -629,6 +629,22 @@ def parse_csv_event_types(raw_value: str) -> tuple[str, ...]:
     return parsed
 
 
+def _build_freshness_caveat(event_types: Sequence[str]) -> str:
+    freshness_types = [t for t in event_types if t != "book"]
+    if not freshness_types:
+        return "Freshness is not scored in this run (no event types other than `book` were tracked)."
+    if len(freshness_types) == 1:
+        types_phrase = f"{freshness_types[0]} events only"
+    else:
+        types_phrase = ", ".join(freshness_types[:-1]) + f" and {freshness_types[-1]} events only"
+    if "book" in event_types:
+        return (
+            f"Freshness is measured over {types_phrase}; book events carry a last-changed "
+            "timestamp (not an emit time) and are reported separately as book_age_ms."
+        )
+    return f"Freshness is measured over {types_phrase}."
+
+
 def parse_csv_topologies(raw_value: str) -> tuple[int, ...]:
     values: list[int] = []
     for part in raw_value.split(","):
@@ -1793,7 +1809,7 @@ class MetricsAggregator:
             },
             "caveats": [
                 "Relative loss is topology-relative within this run, not authoritative venue loss.",
-                "Freshness is measured over price_change and last_trade_price events only; book events carry a last-changed timestamp (not an emit time) and are reported separately as book_age_ms.",
+                _build_freshness_caveat(config.event_types),
                 "Warmup is applied per connection and after reconnects; those observations are recorded but excluded from scored metrics.",
                 f"Unique event aggregation uses a rolling {config.event_retention_seconds:.1f}s retention window to keep memory bounded on long runs.",
                 f"Latency/freshness percentiles and histograms are estimated from bounded reservoir samples of up to {DEFAULT_DISTRIBUTION_SAMPLE_SIZE} values per metric.",
@@ -3598,6 +3614,36 @@ def render_report_html(
     tail_silence = activity_window.get("run_tail_silence_seconds")
     output_dir_label = html.escape(str(run_metadata.get("output_dir")))
 
+    event_types_meta = list(run_metadata.get("event_types") or [])
+    freshness_event_types = [t for t in event_types_meta if t != "book"]
+    if not freshness_event_types:
+        freshness_dd = (
+            "Freshness is not scored in this run (no event types other than "
+            "<code>book</code> were tracked)."
+        )
+    else:
+        types_codes = [f"<code>{html.escape(t)}</code>" for t in freshness_event_types]
+        if len(types_codes) == 1:
+            types_phrase = f"{types_codes[0]} events only"
+        else:
+            types_phrase = ", ".join(types_codes[:-1]) + f" and {types_codes[-1]} events only"
+        freshness_dd = (
+            f"<strong>End-to-end latency.</strong> <code>received_at − venue_timestamp</code> on "
+            f"{types_phrase}. This is the real \"how stale is the data I'm acting on\" number — "
+            "it spans Polymarket fanout + Cloudflare + network + kernel + Python parse. Lower is "
+            "better. Median (P50) is typical; P95 is the tail."
+        )
+    if "book" in event_types_meta:
+        book_age_block = (
+            "          <dt>Book age</dt>\n"
+            "          <dd>Same formula as freshness but for <code>book</code> events, which "
+            "carry a \"last book change\" timestamp rather than an emit time. Tracked separately "
+            "so it doesn't poison the freshness metric. High book_age just means \"nothing "
+            "changed in the book for a while\".</dd>\n"
+        )
+    else:
+        book_age_block = ""
+
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -3889,11 +3935,9 @@ def render_report_html(
       <div class="panel">
         <dl class="glossary-list">
           <dt>Freshness</dt>
-          <dd><strong>End-to-end latency.</strong> <code>received_at − venue_timestamp</code> on <code>price_change</code> and <code>last_trade_price</code> events only. This is the real "how stale is the data I'm acting on" number — it spans Polymarket fanout + Cloudflare + network + kernel + Python parse. Lower is better. Median (P50) is typical; P95 is the tail.</dd>
+          <dd>{freshness_dd}</dd>
 
-          <dt>Book age</dt>
-          <dd>Same formula as freshness but for <code>book</code> events, which carry a "last book change" timestamp rather than an emit time. Tracked separately so it doesn't poison the freshness metric. High book_age just means "nothing changed in the book for a while".</dd>
-
+{book_age_block}
           <dt>Arrival delta</dt>
           <dd><strong>Relative latency.</strong> <code>this_topology_received_at − first_topology_received_at</code> for the same event. 0 means this pool won the race; higher means it lost by that many ms. Tells you whether adding connections actually gets you faster reads — not absolute latency.</dd>
 

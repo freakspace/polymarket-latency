@@ -9,12 +9,15 @@
 series_id = "10684"
 duration = 172800                       # 48h
 topologies = [1, 2, 5, 10, 15]
-connection_rotate_seconds = 10.0        # per ANALYSIS.md recommendation
+# rotation disabled: rotate≈warmup makes every scored sample a resubscribe-replay
+# event with stale venue_timestamp, collapsing freshness P95 to ~8s and coverage
+# to single digits. Use bench-sweep to study rotation effects in isolation.
+connection_rotate_seconds = 0
 warmup_seconds = 10.0                   # exclude per-connection backlog tail from scored metrics
 warmup_compare_window_seconds = 30.0
 ping_interval_seconds = 20.0
 event_retention_seconds = 30.0          # 2x prior runs' max single-socket stall, defensive against backfill contamination
-event_types = ["book", "price_change", "last_trade_price"]
+event_types = ["price_change"]
 progress_interval_seconds = 60.0        # 5s would print 34,560 lines over 48h
 series_refresh_seconds = 5.0
 write_visuals = true                    # rendered once at finalization, not streamed
