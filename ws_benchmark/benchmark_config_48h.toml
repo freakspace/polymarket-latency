@@ -8,7 +8,7 @@
 
 series_id = "10684"
 duration = 172800                       # 48h
-topologies = [1, 2, 5, 10]             # 15 dropped: 33-socket variant saturated the aggregator (consume_observations hit 688ms slow-callback warnings, freshness blew up to multi-second). Re-add only if the consume_observations hot path is optimized or split across processes.
+topologies = [10, 15]                   # focused 10-vs-15 comparison; 25 sockets total fits within the aggregator's single-thread budget where 33 ([1,2,5,10,15]) did not. Drop to [15] alone if 25 still saturates.
 # rotation disabled: rotate≈warmup makes every scored sample a resubscribe-replay
 # event with stale venue_timestamp, collapsing freshness P95 to ~8s and coverage
 # to single digits. Use bench-sweep to study rotation effects in isolation.
