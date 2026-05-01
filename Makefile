@@ -8,7 +8,7 @@ ORDER_BURST_SCRIPT := polymarket_order_burst.py
 ORDER_BURST_REPORT_SCRIPT := order_burst_html_generator.py
 ORDER_BURST_DIR := recordings/order-burst
 
-.PHONY: help benchmark benchmark-48h bench-sweep report order-burst order-burst-report server web web-dev
+.PHONY: help benchmark benchmark-48h benchmark-tmux bench-sweep report order-burst order-burst-report server web web-dev
 
 help:
 	@echo "Available targets:"
@@ -26,6 +26,15 @@ help:
 	@echo "    BENCHMARK_SLOW_CALLBACK_MS=200 by default. Run inside tmux/screen so"
 	@echo "    the SSH session can drop without killing the run."
 	@echo "    Env overrides: CONFIG=<path> LOG=<path> ARGS=\"...\" SKIP_DEBUG=1"
+	@echo ""
+	@echo "  make benchmark-tmux"
+	@echo "    Multi-process variant: launches one tmux session per topology so each"
+	@echo "    runs in its own Python process (escapes the single-asyncio-loop"
+	@echo "    throughput ceiling). Waits for all sessions to finish, then merges"
+	@echo "    per-topology summaries into a unified summary.json + report.html under"
+	@echo "    recordings/ws-bench-multi/<timestamp>/."
+	@echo "    Env overrides: CONFIG=<path> DURATION=<s> TOPOLOGIES=1,2,5,10,15"
+	@echo "                   POLL_INTERVAL=<s> SESSION_PREFIX=poly-bench"
 	@echo ""
 	@echo "  make bench-sweep"
 	@echo "    Run the benchmark three times back-to-back on the same market with"
@@ -114,6 +123,16 @@ benchmark-48h:
 	echo "[make] cmd:    $(PYTHON) $(BENCHMARK_SCRIPT) $${args[*]}"; \
 	echo ""; \
 	"$(PYTHON)" "$(BENCHMARK_SCRIPT)" "$${args[@]}" 2>&1 | tee "$$log"
+
+benchmark-tmux:
+	@set -euo pipefail; \
+	config="$${CONFIG:-ws_benchmark/benchmark_config_48h.toml}"; \
+	if [[ ! -f "$$config" ]]; then \
+		echo "[make] config not found: $$config"; \
+		exit 1; \
+	fi; \
+	export PYTHON="$(PYTHON)"; \
+	exec bash ws_benchmark/bench_multi.sh "$$config"
 
 bench-sweep:
 	@set -euo pipefail; \
