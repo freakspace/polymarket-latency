@@ -28,10 +28,10 @@ from pathlib import Path
 from typing import Any
 
 
-def _topology_sort_key(entry: dict[str, Any]) -> int:
-    raw = entry.get("topology_id", 0)
+def _topology_sort_key(item: tuple[str, dict[str, Any]]) -> int:
+    key, _ = item
     try:
-        return int(raw)
+        return int(key)
     except (TypeError, ValueError):
         return 0
 
@@ -80,23 +80,31 @@ def main() -> int:
     base_dir, base = loaded[0]
     merged: dict[str, Any] = json.loads(json.dumps(base))  # deep copy
 
-    all_topologies: list[dict[str, Any]] = []
-    seen_topology_ids: set[str] = set()
+    # `topologies` and `connections` in summary.json are both dicts keyed by id,
+    # not lists. Merge dict-by-dict, warning on collisions.
+    all_topologies: dict[str, dict[str, Any]] = {}
     all_connections: dict[str, Any] = {}
 
     for d, payload in loaded:
-        for topo in payload.get("topologies") or []:
-            tid = str(topo.get("topology_id"))
-            if tid in seen_topology_ids:
+        topologies_dict = payload.get("topologies") or {}
+        if not isinstance(topologies_dict, dict):
+            print(
+                f"[merge] warning: {d.name}/summary.json has non-dict topologies field; skipping",
+                file=sys.stderr,
+            )
+            continue
+        for tid, topo in topologies_dict.items():
+            if tid in all_topologies:
                 print(
                     f"[merge] warning: duplicate topology_id {tid!r} from {d.name} — keeping first",
                     file=sys.stderr,
                 )
                 continue
-            seen_topology_ids.add(tid)
-            all_topologies.append(topo)
+            all_topologies[tid] = topo
 
         connections = payload.get("connections") or {}
+        if not isinstance(connections, dict):
+            continue
         for conn_id, conn_payload in connections.items():
             if conn_id in all_connections:
                 print(
@@ -106,14 +114,15 @@ def main() -> int:
                 continue
             all_connections[conn_id] = conn_payload
 
-    all_topologies.sort(key=_topology_sort_key)
+    sorted_items = sorted(all_topologies.items(), key=_topology_sort_key)
     sorted_topology_ids = [
-        int(t.get("topology_id", 0))
-        for t in all_topologies
-        if str(t.get("topology_id", "")).isdigit()
+        int(tid) for tid, _ in sorted_items if tid.isdigit()
     ]
+    sorted_topologies_dict: dict[str, dict[str, Any]] = {
+        tid: topo for tid, topo in sorted_items
+    }
 
-    merged["topologies"] = all_topologies
+    merged["topologies"] = sorted_topologies_dict
     merged["connections"] = all_connections
 
     run_metadata = merged.setdefault("run_metadata", {})
