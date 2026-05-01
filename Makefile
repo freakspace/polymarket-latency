@@ -3,12 +3,13 @@ SHELL := /bin/bash
 PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,$(if $(wildcard venv/bin/python),venv/bin/python,python3))
 BENCHMARK_SCRIPT := ws_benchmark/benchmark.py
 REPORT_SCRIPT := ws_benchmark/html_generator.py
+TIMELINE_SCRIPT := ws_benchmark/timeline_aggregator.py
 REPORTS_DIR := recordings/ws-bench
 ORDER_BURST_SCRIPT := polymarket_order_burst.py
 ORDER_BURST_REPORT_SCRIPT := order_burst_html_generator.py
 ORDER_BURST_DIR := recordings/order-burst
 
-.PHONY: help benchmark benchmark-48h benchmark-tmux bench-sweep report order-burst order-burst-report server web web-dev
+.PHONY: help benchmark benchmark-48h benchmark-tmux bench-sweep report timeline order-burst order-burst-report server web web-dev
 
 help:
 	@echo "Available targets:"
@@ -49,6 +50,15 @@ help:
 	@echo ""
 	@echo "  make report SUMMARY=<path>/summary.json"
 	@echo "    Render a specific summary without the interactive prompt."
+	@echo "    If events.jsonl is present and timeline/index.json is missing or stale,"
+	@echo "    also runs the timeline aggregator (see 'make timeline')."
+	@echo ""
+	@echo "  make timeline"
+	@echo "    Build the per-socket Timeline artifacts (timeline/*.json) under the"
+	@echo "    chosen run dir. Reads events.jsonl + connections.jsonl, writes"
+	@echo "    bucketed series and a sparse byte-offset index for the dashboard."
+	@echo "    Requires the run to have been recorded with --write-event-log."
+	@echo "    Env: SUMMARY=<path>/summary.json (or run dir) FORCE=1 INDEX_STRIDE=<n>"
 	@echo ""
 	@echo "  make order-burst TOKEN_ID=<token-id>"
 	@echo "    Run the Polymarket CLOB v2 duplicate/latency burst test."
@@ -224,7 +234,56 @@ report:
 		*) script="$(REPORT_SCRIPT)"; kind="ws-bench";; \
 	esac; \
 	echo "[make] rendering $$kind report for $$summary"; \
-	"$(PYTHON)" "$$script" "$$summary"
+	"$(PYTHON)" "$$script" "$$summary"; \
+	if [[ "$$kind" == "ws-bench" ]]; then \
+		run_dir="$$(dirname "$$summary")"; \
+		events="$$run_dir/events.jsonl"; \
+		index="$$run_dir/timeline/index.json"; \
+		if [[ -s "$$events" ]] && { [[ ! -f "$$index" ]] || [[ "$$events" -nt "$$index" ]]; }; then \
+			echo "[make] events.jsonl present — also building timeline artifacts"; \
+			"$(PYTHON)" "$(TIMELINE_SCRIPT)" "$$run_dir"; \
+		fi; \
+	fi
+
+timeline:
+	@set -euo pipefail; \
+	summary="$${SUMMARY:-}"; \
+	if [[ -z "$$summary" ]]; then \
+		summaries=(); \
+		while IFS= read -r line; do \
+			[[ -n "$$line" ]] && summaries+=("$$line"); \
+		done < <(find "$(REPORTS_DIR)" -type f -name summary.json 2>/dev/null | awk -F/ '{print $$(NF-1)"\t"$$0}' | sort -r | cut -f2-); \
+		if (( $${#summaries[@]} == 0 )); then \
+			echo "[make] no benchmark summaries found under $(REPORTS_DIR)"; \
+			exit 1; \
+		fi; \
+		echo "Available ws-bench runs:"; \
+		for i in "$${!summaries[@]}"; do \
+			run_dir="$$(dirname "$${summaries[$$i]}")"; \
+			has_events="(no events.jsonl)"; \
+			[[ -s "$$run_dir/events.jsonl" ]] && has_events="(has events.jsonl)"; \
+			printf "  %2d) %s %s\n" "$$((i + 1))" "$$run_dir" "$$has_events"; \
+		done; \
+		echo ""; \
+		read -r -p "Choose a run to aggregate [1-$${#summaries[@]}]: " choice; \
+		if [[ ! "$$choice" =~ ^[0-9]+$$ ]] || (( choice < 1 || choice > $${#summaries[@]} )); then \
+			echo "[make] invalid selection: $$choice"; exit 1; \
+		fi; \
+		summary="$${summaries[$$((choice - 1))]}"; \
+	else \
+		if [[ -d "$$summary" ]]; then \
+			summary="$${summary%/}/summary.json"; \
+		fi; \
+		if [[ ! -f "$$summary" ]]; then \
+			echo "[make] summary file not found: $$summary"; \
+			exit 1; \
+		fi; \
+	fi; \
+	args=("$$summary"); \
+	if [[ "$${FORCE:-}" == "1" ]]; then args+=(--force); fi; \
+	if [[ -n "$${INDEX_STRIDE:-}" ]]; then args+=(--index-stride "$$INDEX_STRIDE"); fi; \
+	echo "[make] building timeline for $$summary"; \
+	"$(PYTHON)" "$(TIMELINE_SCRIPT)" "$${args[@]}"
 
 order-burst:
 	@set -euo pipefail; \

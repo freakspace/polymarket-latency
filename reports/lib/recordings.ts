@@ -9,8 +9,16 @@ export type RunListing = {
   path: string;
   summaryPath: string;
   hasEvents: boolean;
+  hasTimeline: boolean;
   summary: Summary;
 };
+
+async function exists(p: string): Promise<boolean> {
+  return fs
+    .access(p)
+    .then(() => true)
+    .catch(() => false);
+}
 
 export async function listRuns(): Promise<RunListing[]> {
   let entries: string[];
@@ -34,15 +42,16 @@ export async function listRuns(): Promise<RunListing[]> {
     }
     try {
       const summary = parseSummary(JSON.parse(raw));
-      const hasEvents = await fs
-        .access(path.join(runDir, "events.jsonl"))
-        .then(() => true)
-        .catch(() => false);
+      const [hasEvents, hasTimeline] = await Promise.all([
+        exists(path.join(runDir, "events.jsonl")),
+        exists(path.join(runDir, "timeline", "index.json")),
+      ]);
       runs.push({
         timestamp: entry,
         path: runDir,
         summaryPath,
         hasEvents,
+        hasTimeline,
         summary,
       });
     } catch (err) {
@@ -64,15 +73,16 @@ export async function loadRun(timestamp: string): Promise<RunListing | null> {
     return null;
   }
   const summary = parseSummary(JSON.parse(raw));
-  const hasEvents = await fs
-    .access(path.join(runDir, "events.jsonl"))
-    .then(() => true)
-    .catch(() => false);
+  const [hasEvents, hasTimeline] = await Promise.all([
+    exists(path.join(runDir, "events.jsonl")),
+    exists(path.join(runDir, "timeline", "index.json")),
+  ]);
   return {
     timestamp,
     path: runDir,
     summaryPath,
     hasEvents,
+    hasTimeline,
     summary,
   };
 }

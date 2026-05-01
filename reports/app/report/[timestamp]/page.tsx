@@ -28,7 +28,11 @@ export default async function ReportPage({
   return (
     <>
       <BackLink />
-      <ReportView summary={run.summary} timestamp={run.timestamp} />
+      <ReportView
+        summary={run.summary}
+        timestamp={run.timestamp}
+        hasTimeline={run.hasTimeline}
+      />
     </>
   );
 }
